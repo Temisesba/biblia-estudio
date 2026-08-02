@@ -154,11 +154,11 @@ export async function markChapterRead(bookOrder: number, chapterNumber: number) 
   const book = BOOKS.find((b) => b.order === bookOrder);
   if (!book) throw new Error("Libro no encontrado");
 
-  const { data: bookRow } = await supabase
-    .from("books")
-    .select("id")
-    .eq("order", bookOrder)
-    .single();
+  // Nota: "order" es un parámetro reservado en PostgREST (usado para ORDER BY),
+  // así que no se puede filtrar con .eq("order", ...) sobre una columna llamada
+  // "order" — se trae la lista completa (66 filas) y se filtra en JS.
+  const { data: allBooks } = await supabase.from("books").select("id, order");
+  const bookRow = (allBooks ?? []).find((b) => b.order === bookOrder);
   if (!bookRow) throw new Error("Libro no sembrado en la base de datos");
 
   const { error } = await supabase.rpc("mark_chapter_read", {

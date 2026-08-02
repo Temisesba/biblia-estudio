@@ -13,8 +13,12 @@ export async function resolveBook(slug: string) {
   const meta = getBookBySlug(slug);
   if (!meta) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("books").select("*").eq("order", meta.order).single();
-  return data ? { ...meta, id: data.id as number } : null;
+  // Nota: "order" es un parámetro reservado en PostgREST (ORDER BY), así que no
+  // se puede filtrar con .eq("order", ...) sobre una columna llamada "order" —
+  // se trae la lista completa (66 filas) y se filtra en JS.
+  const { data } = await supabase.from("books").select("id, order");
+  const row = (data ?? []).find((b) => b.order === meta.order);
+  return row ? { ...meta, id: row.id as number } : null;
 }
 
 export async function getChapterVerses(bookId: number, chapterNumber: number): Promise<Verse[]> {
