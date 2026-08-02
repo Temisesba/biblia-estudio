@@ -17,6 +17,7 @@ export function TopNav({ profile }: { profile: Profile }) {
           <NavLink href="/leer">Leer</NavLink>
           <NavLink href="/mi-estudio">Mi estudio</NavLink>
           <NavLink href="/progreso">Progreso</NavLink>
+          <NavLink href="/temas">Temas</NavLink>
           {profile.role === "admin" && <NavLink href="/admin">Admin</NavLink>}
         </nav>
         <SearchBar />

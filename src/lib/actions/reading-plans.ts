@@ -17,6 +17,69 @@ export async function enrollInPlan(planId: string) {
   revalidatePath("/planes");
 }
 
+async function requireAdmin() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  if (profile?.role !== "admin") throw new Error("No autorizado");
+  return { supabase, userId: user.id };
+}
+
+export async function createReadingPlan(name: string, description: string) {
+  const { supabase, userId } = await requireAdmin();
+  const { data, error } = await supabase
+    .from("reading_plans")
+    .insert({ name: name.trim(), description: description.trim() || null, created_by: userId })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/planes");
+  revalidatePath("/planes");
+  return data;
+}
+
+export async function addPlanChapters(
+  planId: string,
+  refs: { bookOrder: number; chapterNumber: number }[]
+) {
+  const { supabase } = await requireAdmin();
+
+  const { data: bookRows } = await supabase.from("books").select("id, order");
+  const orderToId = new Map((bookRows ?? []).map((r) => [r.order as number, r.id as number]));
+
+  const { data: existingDays } = await supabase
+    .from("reading_plan_days")
+    .select("day_number")
+    .eq("plan_id", planId)
+    .order("day_number", { ascending: false })
+    .limit(1);
+  let nextDay = ((existingDays?.[0]?.day_number as number) ?? 0) + 1;
+
+  const rows = [];
+  for (const ref of refs) {
+    const bookId = orderToId.get(ref.bookOrder);
+    if (!bookId) continue;
+    rows.push({ plan_id: planId, day_number: nextDay++, book_id: bookId, chapter_number: ref.chapterNumber });
+  }
+  if (rows.length === 0) return;
+
+  const { error } = await supabase.from("reading_plan_days").insert(rows);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/admin/planes/${planId}`);
+  revalidatePath(`/planes/${planId}`);
+}
+
+export async function deletePlanDay(id: string, planId: string) {
+  const { supabase } = await requireAdmin();
+  const { error } = await supabase.from("reading_plan_days").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/admin/planes/${planId}`);
+  revalidatePath(`/planes/${planId}`);
+}
+
 export async function markPlanDayDone(planId: string, dayNumber: number) {
   const supabase = await createClient();
   const {

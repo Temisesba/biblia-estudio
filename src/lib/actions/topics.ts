@@ -1,0 +1,83 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+import { BOOKS, slugify as slugifyBookName } from "@/lib/books-meta";
+
+function chapterPath(bookOrder: number, chapterNumber: number) {
+  const book = BOOKS.find((b) => b.order === bookOrder);
+  return `/leer/${book ? slugifyBookName(book.name) : bookOrder}/${chapterNumber}`;
+}
+
+function slugifyTopic(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
+async function requireAdmin() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  if (profile?.role !== "admin") throw new Error("No autorizado");
+  return { supabase, userId: user.id };
+}
+
+export async function getOrCreateTopic(name: string) {
+  const { supabase, userId } = await requireAdmin();
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("El nombre del tema no puede estar vacío");
+  const slug = slugifyTopic(trimmed);
+
+  const { data: existing } = await supabase.from("topics").select("*").eq("slug", slug).maybeSingle();
+  if (existing) return existing;
+
+  const { data, error } = await supabase
+    .from("topics")
+    .insert({ name: trimmed, slug, created_by: userId })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function tagVerses(input: {
+  topicId: string;
+  bookId: number;
+  bookOrder: number;
+  chapterNumber: number;
+  verseStart: number;
+  verseEnd: number;
+}) {
+  const { supabase, userId } = await requireAdmin();
+  const rows = [];
+  for (let v = input.verseStart; v <= input.verseEnd; v++) {
+    rows.push({
+      topic_id: input.topicId,
+      book_id: input.bookId,
+      chapter_number: input.chapterNumber,
+      verse_number: v,
+      created_by: userId,
+    });
+  }
+  const { error } = await supabase
+    .from("verse_topics")
+    .upsert(rows, { onConflict: "topic_id,book_id,chapter_number,verse_number" });
+  if (error) throw new Error(error.message);
+  revalidatePath(chapterPath(input.bookOrder, input.chapterNumber));
+}
+
+export async function untagVerse(verseTopicId: string, bookOrder: number, chapterNumber: number) {
+  const { supabase } = await requireAdmin();
+  const { error } = await supabase.from("verse_topics").delete().eq("id", verseTopicId);
+  if (error) throw new Error(error.message);
+  revalidatePath(chapterPath(bookOrder, chapterNumber));
+  revalidatePath("/temas");
+}

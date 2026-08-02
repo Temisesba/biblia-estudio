@@ -1,7 +1,9 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import type { Verse, Highlight, Favorite, Note, PublicAnnotation } from "@/types/database";
+import Link from "next/link";
+import type { Verse, Highlight, Favorite, Note, PublicAnnotation, Topic, VerseTopic } from "@/types/database";
+import type { ChapterTopicsMap } from "@/lib/data/topics";
 import { HIGHLIGHT_COLORS, DEFAULT_COLOR } from "@/lib/highlight-colors";
 import { createHighlight, deleteHighlight, toggleFavorite, createNote } from "@/lib/actions/study";
 import {
@@ -9,7 +11,8 @@ import {
   updatePublicAnnotation,
   deletePublicAnnotation,
 } from "@/lib/actions/annotations";
-import { Star, MessageCircle } from "lucide-react";
+import { getOrCreateTopic, tagVerses, untagVerse } from "@/lib/actions/topics";
+import { Star, MessageCircle, Tag } from "lucide-react";
 
 interface Selection {
   verseStart: number;
@@ -32,6 +35,8 @@ export function VerseList({
   favorites,
   notes,
   publicAnnotations,
+  chapterTopics,
+  allTopics,
   isAdmin,
   searchQuery,
   onJumpToNotes,
@@ -44,6 +49,8 @@ export function VerseList({
   favorites: Favorite[];
   notes: Note[];
   publicAnnotations: PublicAnnotation[];
+  chapterTopics: ChapterTopicsMap;
+  allTopics: (Topic & { verseCount: number })[];
   isAdmin: boolean;
   searchQuery?: string;
   onJumpToNotes?: () => void;
@@ -57,6 +64,12 @@ export function VerseList({
   const [viewingAnnotation, setViewingAnnotation] = useState<PublicAnnotation | null>(null);
   const [editingAnnotation, setEditingAnnotation] = useState(false);
   const [annotationEditText, setAnnotationEditText] = useState("");
+  const [tagFor, setTagFor] = useState<Selection | null>(null);
+  const [tagQuery, setTagQuery] = useState("");
+  const [viewingVerseTopics, setViewingVerseTopics] = useState<{
+    verseNumber: number;
+    topics: (VerseTopic & { topicName: string; topicSlug: string })[];
+  } | null>(null);
   const [pending, startTransition] = useTransition();
 
   function handleMouseUp() {
@@ -186,6 +199,55 @@ export function VerseList({
     });
   }
 
+  function openTag() {
+    if (!selection) return;
+    setTagFor(selection);
+    setTagQuery("");
+    setSelection(null);
+  }
+
+  function applyTag(topicId: string) {
+    if (!tagFor) return;
+    startTransition(async () => {
+      await tagVerses({
+        topicId,
+        bookId,
+        bookOrder,
+        chapterNumber,
+        verseStart: tagFor.verseStart,
+        verseEnd: tagFor.verseEnd,
+      });
+      window.getSelection()?.removeAllRanges();
+      setTagFor(null);
+      setTagQuery("");
+    });
+  }
+
+  function createAndApplyTag() {
+    if (!tagQuery.trim() || !tagFor) return;
+    startTransition(async () => {
+      const topic = await getOrCreateTopic(tagQuery.trim());
+      await tagVerses({
+        topicId: topic.id,
+        bookId,
+        bookOrder,
+        chapterNumber,
+        verseStart: tagFor.verseStart,
+        verseEnd: tagFor.verseEnd,
+      });
+      window.getSelection()?.removeAllRanges();
+      setTagFor(null);
+      setTagQuery("");
+    });
+  }
+
+  function removeVerseTopic(id: string) {
+    startTransition(async () => {
+      await untagVerse(id, bookOrder, chapterNumber);
+      setViewingVerseTopics(null);
+    });
+  }
+
   function favoriteFor(verseNumber: number) {
     return favorites.find(
       (f) =>
@@ -216,6 +278,7 @@ export function VerseList({
         onUnderline={() => applyHighlight("subrayado", DEFAULT_COLOR)}
         onComment={openComment}
         onPublicNote={openPublicNote}
+        onTag={openTag}
         onDismiss={() => {
           window.getSelection()?.removeAllRanges();
           setSelection(null);
@@ -228,6 +291,7 @@ export function VerseList({
           const fav = favoriteFor(v.verse_number);
           const vComments = commentsFor(v.verse_number);
           const vAnnotations = annotationsFor(v.verse_number);
+          const vTopics = chapterTopics[v.verse_number] ?? [];
           const wholeVerseHighlight = vHighlights.find((h) => h.char_start === null);
           const partial = vHighlights.filter((h) => h.char_start !== null && h.verse_start === h.verse_end);
 
@@ -299,6 +363,17 @@ export function VerseList({
                   aria-label={`Ver ${vComments.length} comentario(s) en este versículo`}
                 >
                   <MessageCircle size={14} fill="currentColor" className="text-primary/20" />
+                </button>
+              )}
+              {vTopics.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setViewingVerseTopics({ verseNumber: v.verse_number, topics: vTopics })}
+                  title={vTopics.map((t) => t.topicName).join(", ")}
+                  className="ml-1 inline-flex align-middle text-amber-600 dark:text-amber-400"
+                  aria-label={`Ver temas de este versículo`}
+                >
+                  <Tag size={14} />
                 </button>
               )}
             </p>
@@ -452,6 +527,95 @@ export function VerseList({
           </div>
         </div>
       )}
+
+      {tagFor && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4" onClick={() => setTagFor(null)}>
+          <div
+            className="w-full max-w-md rounded-lg border border-border bg-background p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-2 text-sm font-medium">
+              Etiquetar: <span className="italic text-foreground/70">&ldquo;{tagFor.text}&rdquo;</span>
+            </p>
+            <input
+              autoFocus
+              value={tagQuery}
+              onChange={(e) => setTagQuery(e.target.value)}
+              placeholder="Buscar o crear tema (ej. duelo, esperanza)"
+              className="w-full rounded-md border border-border bg-background p-2 text-sm outline-none focus:border-primary"
+            />
+            <div className="mt-2 flex max-h-48 flex-col gap-1 overflow-y-auto">
+              {allTopics
+                .filter((t) => t.name.toLowerCase().includes(tagQuery.trim().toLowerCase()))
+                .map((t) => (
+                  <button
+                    key={t.id}
+                    disabled={pending}
+                    onClick={() => applyTag(t.id)}
+                    className="rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50"
+                  >
+                    #{t.name} <span className="text-xs text-foreground/40">({t.verseCount})</span>
+                  </button>
+                ))}
+              {tagQuery.trim() && !allTopics.some((t) => t.name.toLowerCase() === tagQuery.trim().toLowerCase()) && (
+                <button
+                  disabled={pending}
+                  onClick={createAndApplyTag}
+                  className="rounded-md border border-dashed border-border px-2 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50"
+                >
+                  Crear tema &ldquo;{tagQuery.trim()}&rdquo;
+                </button>
+              )}
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button onClick={() => setTagFor(null)} className="rounded-md px-3 py-1.5 text-sm hover:bg-muted">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingVerseTopics && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => setViewingVerseTopics(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-border bg-background p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-3 text-sm font-medium">Temas de este versículo</p>
+            <ul className="flex flex-col gap-2">
+              {viewingVerseTopics.topics.map((t) => (
+                <li key={t.id} className="flex items-center justify-between gap-2 rounded-md border border-border p-2 text-sm">
+                  <Link
+                    href={`/temas/${t.topicSlug}`}
+                    onClick={() => setViewingVerseTopics(null)}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    #{t.topicName}
+                  </Link>
+                  {isAdmin && (
+                    <button
+                      disabled={pending}
+                      onClick={() => removeVerseTopic(t.id)}
+                      className="text-xs text-red-500 hover:underline disabled:opacity-50"
+                    >
+                      Quitar
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex justify-end">
+              <button onClick={() => setViewingVerseTopics(null)} className="rounded-md px-3 py-1.5 text-sm hover:bg-muted">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -516,6 +680,7 @@ function SelectionToolbar({
   onUnderline,
   onComment,
   onPublicNote,
+  onTag,
   onDismiss,
 }: {
   disabled: boolean;
@@ -525,6 +690,7 @@ function SelectionToolbar({
   onUnderline: () => void;
   onComment: () => void;
   onPublicNote: () => void;
+  onTag: () => void;
   onDismiss: () => void;
 }) {
   return (
@@ -567,6 +733,16 @@ function SelectionToolbar({
           className="rounded px-2 py-1 text-sm hover:bg-muted"
         >
           📌
+        </button>
+      )}
+      {isAdmin && (
+        <button
+          onClick={onTag}
+          disabled={disabled}
+          title="Etiquetar por tema (ej. duelo, esperanza)"
+          className="rounded px-2 py-1 text-sm hover:bg-muted disabled:pointer-events-none"
+        >
+          🏷️
         </button>
       )}
       {!disabled && (

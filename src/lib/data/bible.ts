@@ -1,4 +1,6 @@
+import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import { BOOKS, getBookBySlug } from "@/lib/books-meta";
 import type {
   Verse,
@@ -22,29 +24,49 @@ export async function resolveBook(slug: string) {
   return row ? { ...meta, id: row.id as number } : null;
 }
 
+// Cacheadas: el texto bíblico y el contexto son de lectura pública (RLS
+// permite anon) y casi no cambian, así que se pueden servir desde caché en
+// vez de golpear Supabase en cada carga de capítulo. Los datos privados del
+// usuario (resaltados, notas, progreso, favoritos) nunca se cachean.
+const getChapterVersesCached = unstable_cache(
+  async (bookId: number, chapterNumber: number): Promise<Verse[]> => {
+    const supabase = createPublicClient();
+    const { data } = await supabase
+      .from("verses")
+      .select("*")
+      .eq("book_id", bookId)
+      .eq("chapter_number", chapterNumber)
+      .order("verse_number");
+    return (data as Verse[]) ?? [];
+  },
+  ["chapter-verses"],
+  { revalidate: 3600 }
+);
+
 export async function getChapterVerses(bookId: number, chapterNumber: number): Promise<Verse[]> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("verses")
-    .select("*")
-    .eq("book_id", bookId)
-    .eq("chapter_number", chapterNumber)
-    .order("verse_number");
-  return (data as Verse[]) ?? [];
+  return getChapterVersesCached(bookId, chapterNumber);
 }
+
+const getChapterContextCached = unstable_cache(
+  async (bookId: number, chapterNumber: number): Promise<ChapterContext | null> => {
+    const supabase = createPublicClient();
+    const { data } = await supabase
+      .from("contexts")
+      .select("*")
+      .eq("book_id", bookId)
+      .eq("chapter_number", chapterNumber)
+      .maybeSingle();
+    return (data as ChapterContext) ?? null;
+  },
+  ["chapter-context"],
+  { revalidate: 300 }
+);
 
 export async function getChapterContext(
   bookId: number,
   chapterNumber: number
 ): Promise<ChapterContext | null> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("contexts")
-    .select("*")
-    .eq("book_id", bookId)
-    .eq("chapter_number", chapterNumber)
-    .maybeSingle();
-  return (data as ChapterContext) ?? null;
+  return getChapterContextCached(bookId, chapterNumber);
 }
 
 export async function getUserHighlights(

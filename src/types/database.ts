@@ -58,6 +58,24 @@ export interface ChapterContext {
   updated_at: string;
 }
 
+export interface Topic {
+  id: string;
+  name: string;
+  slug: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface VerseTopic {
+  id: string;
+  topic_id: string;
+  book_id: number;
+  chapter_number: number;
+  verse_number: number;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface PublicAnnotation {
   id: string;
   book_id: number;

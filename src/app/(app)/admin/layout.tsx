@@ -7,6 +7,8 @@ const LINKS = [
   { href: "/admin/usuarios", label: "Usuarios" },
   { href: "/admin/invitaciones", label: "Invitaciones" },
   { href: "/admin/actividad", label: "Actividad de lectura" },
+  { href: "/admin/temas", label: "Temas" },
+  { href: "/admin/planes", label: "Planes de lectura" },
   { href: "/admin/importar", label: "Importar contenido" },
 ];
 

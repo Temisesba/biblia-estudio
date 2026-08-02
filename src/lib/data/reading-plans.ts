@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { BOOKS } from "@/lib/books-meta";
+import { BOOKS, slugify } from "@/lib/books-meta";
 
 export interface PlanSummary {
   id: string;
@@ -40,6 +40,7 @@ export async function getPlans(userId: string): Promise<PlanSummary[]> {
 }
 
 export interface PlanDayDetail {
+  id: string;
   dayNumber: number;
   bookName: string;
   chapterNumber: number;
@@ -63,10 +64,11 @@ export async function getPlanDetail(userId: string, planId: string) {
     const order = idToOrder.get(d.book_id as number);
     const book = BOOKS.find((b) => b.order === order);
     return {
+      id: d.id as string,
       dayNumber: d.day_number as number,
       bookName: book?.name ?? "—",
       chapterNumber: d.chapter_number as number,
-      href: book ? `/leer/${book.name.toLowerCase()}/${d.chapter_number}` : "#",
+      href: book ? `/leer/${slugify(book.name)}/${d.chapter_number}` : "#",
       completed: doneSet.has(d.day_number as number),
     };
   });

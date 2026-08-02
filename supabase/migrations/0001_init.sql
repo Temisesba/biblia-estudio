@@ -86,6 +86,28 @@ create table public.public_annotations (
 );
 create index public_annotations_lookup_idx on public.public_annotations (book_id, chapter_number);
 
+-- ---------- Temas/etiquetas (ej. duelo, esperanza) asignables a un versículo ----------
+create table public.topics (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  slug text not null unique,
+  created_by uuid references public.profiles(id),
+  created_at timestamptz not null default now()
+);
+
+create table public.verse_topics (
+  id uuid primary key default gen_random_uuid(),
+  topic_id uuid not null references public.topics(id) on delete cascade,
+  book_id int not null references public.books(id) on delete cascade,
+  chapter_number int not null,
+  verse_number int not null,
+  created_by uuid references public.profiles(id),
+  created_at timestamptz not null default now(),
+  unique (topic_id, book_id, chapter_number, verse_number)
+);
+create index verse_topics_lookup_idx on public.verse_topics (book_id, chapter_number);
+create index verse_topics_topic_idx on public.verse_topics (topic_id);
+
 -- ---------- Códigos de invitación (control de acceso tipo organización) ----------
 create table public.invite_codes (
   id uuid primary key default gen_random_uuid(),
@@ -200,6 +222,8 @@ alter table public.chapters enable row level security;
 alter table public.verses enable row level security;
 alter table public.contexts enable row level security;
 alter table public.public_annotations enable row level security;
+alter table public.topics enable row level security;
+alter table public.verse_topics enable row level security;
 alter table public.invite_codes enable row level security;
 alter table public.highlights enable row level security;
 alter table public.notes enable row level security;
@@ -232,20 +256,28 @@ create policy "profiles_insert_self" on public.profiles
   for insert with check (id = auth.uid());
 
 -- contenido bíblico: lectura para cualquier usuario autenticado, escritura solo admin
-create policy "books_read_all" on public.books for select using (auth.role() = 'authenticated');
+-- contenido bíblico: lectura pública (sin sesión) para poder cachearlo con
+-- unstable_cache; la escritura sigue restringida a admin
+create policy "books_read_all" on public.books for select using (true);
 create policy "books_write_admin" on public.books for all using (public.is_admin()) with check (public.is_admin());
 
-create policy "chapters_read_all" on public.chapters for select using (auth.role() = 'authenticated');
+create policy "chapters_read_all" on public.chapters for select using (true);
 create policy "chapters_write_admin" on public.chapters for all using (public.is_admin()) with check (public.is_admin());
 
-create policy "verses_read_all" on public.verses for select using (auth.role() = 'authenticated');
+create policy "verses_read_all" on public.verses for select using (true);
 create policy "verses_write_admin" on public.verses for all using (public.is_admin()) with check (public.is_admin());
 
-create policy "contexts_read_all" on public.contexts for select using (auth.role() = 'authenticated');
+create policy "contexts_read_all" on public.contexts for select using (true);
 create policy "contexts_write_admin" on public.contexts for all using (public.is_admin()) with check (public.is_admin());
 
 create policy "public_annotations_read_all" on public.public_annotations for select using (auth.role() = 'authenticated');
 create policy "public_annotations_write_admin" on public.public_annotations for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "topics_read_all" on public.topics for select using (auth.role() = 'authenticated');
+create policy "topics_write_admin" on public.topics for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "verse_topics_read_all" on public.verse_topics for select using (auth.role() = 'authenticated');
+create policy "verse_topics_write_admin" on public.verse_topics for all using (public.is_admin()) with check (public.is_admin());
 
 -- invite_codes: solo admin gestiona; validación de canje se hace vía función security definer
 create policy "invite_codes_admin_only" on public.invite_codes for all using (public.is_admin()) with check (public.is_admin());

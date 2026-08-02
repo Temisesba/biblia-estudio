@@ -16,7 +16,9 @@ import type {
   ReadingProgress,
   ChapterContext,
   PublicAnnotation,
+  Topic,
 } from "@/types/database";
+import type { ChapterTopicsMap } from "@/lib/data/topics";
 
 type Tab = "texto" | "contexto" | "notas" | "progreso";
 
@@ -39,6 +41,8 @@ export function ChapterReader(props: {
   progress: ReadingProgress | null;
   readChapters: Record<number, number[]>;
   publicAnnotations: PublicAnnotation[];
+  chapterTopics: ChapterTopicsMap;
+  allTopics: (Topic & { verseCount: number })[];
   context: ChapterContext | null;
   isAdmin: boolean;
   prevHref: string | null;
@@ -136,6 +140,8 @@ export function ChapterReader(props: {
           favorites={props.favorites}
           notes={props.notes}
           publicAnnotations={props.publicAnnotations}
+          chapterTopics={props.chapterTopics}
+          allTopics={props.allTopics}
           isAdmin={props.isAdmin}
           searchQuery={chapterQuery}
           onJumpToNotes={() => setTab("notas")}
