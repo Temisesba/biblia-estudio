@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import type {
   Verse,
@@ -343,24 +344,30 @@ export function VerseList({
     return publicAnnotations.filter((a) => a.verse_number === verseNumber);
   }
 
+  const toolbarSlot = typeof document !== "undefined" ? document.getElementById("selection-toolbar-slot") : null;
+
   return (
     <div className="relative" ref={containerRef} onMouseUp={handleMouseUp}>
-      <SelectionToolbar
-        disabled={!selection}
-        pending={pending}
-        isAdmin={isAdmin}
-        canPublicNote={!!selection && selection.verseStart === selection.verseEnd && selection.charStart !== null}
-        onColor={(color) => applyHighlight("resaltado", color)}
-        onUnderline={() => applyHighlight("subrayado", DEFAULT_COLOR)}
-        onComment={openComment}
-        onPublicNote={openPublicNote}
-        onTag={openTag}
-        onPersonalTag={openPersonalTag}
-        onDismiss={() => {
-          window.getSelection()?.removeAllRanges();
-          setSelection(null);
-        }}
-      />
+      {toolbarSlot &&
+        createPortal(
+          <SelectionToolbar
+            disabled={!selection}
+            pending={pending}
+            isAdmin={isAdmin}
+            canPublicNote={!!selection && selection.verseStart === selection.verseEnd && selection.charStart !== null}
+            onColor={(color) => applyHighlight("resaltado", color)}
+            onUnderline={() => applyHighlight("subrayado", DEFAULT_COLOR)}
+            onComment={openComment}
+            onPublicNote={openPublicNote}
+            onTag={openTag}
+            onPersonalTag={openPersonalTag}
+            onDismiss={() => {
+              window.getSelection()?.removeAllRanges();
+              setSelection(null);
+            }}
+          />,
+          toolbarSlot
+        )}
 
       <div className="verse-text flex flex-col gap-0.5">
         {verses.map((v) => {
@@ -876,11 +883,12 @@ function SelectionToolbar({
   onDismiss: () => void;
 }) {
   const actionsDisabled = disabled || pending;
+  if (disabled && !pending) return null;
   return (
     <div
-      className={`fixed right-2 top-16 z-40 flex flex-wrap items-center gap-1 rounded-lg border border-border bg-background p-1.5 shadow-lg transition-all sm:right-4 ${
-        disabled ? "scale-90 opacity-40" : "scale-100 opacity-100"
-      } ${pending ? "animate-pulse" : ""}`}
+      className={`flex items-center gap-1 rounded-md border border-border bg-muted/60 p-1 pr-2 mr-1 ${
+        pending ? "animate-pulse" : ""
+      }`}
     >
       {HIGHLIGHT_COLORS.map((c) => (
         <button

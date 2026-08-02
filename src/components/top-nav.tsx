@@ -24,6 +24,7 @@ export function TopNav({ profile }: { profile: Profile }) {
         <div className="ml-auto flex items-center gap-2">
           <FontSizeControl />
           <ThemeToggle />
+          <div id="selection-toolbar-slot" className="flex items-center" />
           <form action={signOutAction}>
             <button
               type="submit"
