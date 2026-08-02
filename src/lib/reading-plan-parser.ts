@@ -102,7 +102,7 @@ const MONTH_HEADERS = new Set([
 ]);
 
 // Intenta reconocer un nombre/abreviatura de libro al inicio de un texto.
-// Prueba primero con 3 palabras, luego 2, luego 1 (para libros compuestos
+// Prueba primero con 4 palabras, luego 3, 2, 1 (para libros compuestos
 // como "1 Samuel" o "Cantar de los Cantares").
 function matchBookAtStart(words: string[]): { order: number; wordsUsed: number } | null {
   for (const wordCount of [4, 3, 2, 1]) {
@@ -130,6 +130,100 @@ function expandRange(spec: string): number[] {
   return single ? [Number(clean)] : [];
 }
 
+interface LineResult {
+  refs: ParsedRef[];
+  unmatched: string[];
+  lastBookOrder: number | null;
+}
+
+// Intenta interpretar una línea (ya sin encabezado de mes) como una o más
+// referencias bíblicas. No decide por sí sola si hay que quitar un número
+// de día — eso lo resuelve el llamador probando con y sin ese prefijo.
+function tryParseLine(rawLine: string, initialLastBookOrder: number | null): LineResult {
+  const refs: ParsedRef[] = [];
+  const unmatched: string[] = [];
+  let lastBookOrder = initialLastBookOrder;
+
+  // línea tipo "1 y 2 Tesalonicenses" o "2 Pedro y Judas" o "Colosenses y Filemón"
+  // (varios libros completos separados por " y ", sin números de capítulo)
+  if (/\by\b/i.test(rawLine) && !/\d+\s*-\s*\d+/.test(rawLine)) {
+    const sides = rawLine.split(/\s+y\s+/i);
+    let allMatched = true;
+    const localRefs: ParsedRef[] = [];
+    let carryPrefix = "";
+    for (const side of sides) {
+      const words = side.trim().split(/\s+/);
+      if (/^\d+$/.test(side.trim())) {
+        carryPrefix = side.trim();
+        continue;
+      }
+      const fullWords = carryPrefix ? [carryPrefix, ...words] : words;
+      const m = matchBookAtStart(fullWords);
+      carryPrefix = "";
+      if (!m || m.wordsUsed !== fullWords.length) {
+        allMatched = false;
+        break;
+      }
+      const total = chaptersOf(m.order);
+      const bookMeta = BOOKS.find((b) => b.order === m.order)!;
+      for (let c = 1; c <= total; c++) {
+        localRefs.push({ bookOrder: m.order, bookName: bookMeta.name, chapterNumber: c });
+      }
+    }
+    if (allMatched && localRefs.length > 0) {
+      return { refs: localRefs, unmatched: [], lastBookOrder: localRefs[localRefs.length - 1].bookOrder };
+    }
+  }
+
+  // segmentos separados por coma: cada uno puede traer su propio libro, o
+  // continuar el libro del segmento anterior (ej. "Sal. 1-2, 15, 22-24")
+  const segments = rawLine.split(",").map((s) => s.trim()).filter(Boolean);
+
+  for (const segment of segments) {
+    const words = segment.split(/\s+/);
+    const bookMatch = matchBookAtStart(words);
+
+    let bookOrder: number | null = null;
+    let rest: string;
+
+    if (bookMatch) {
+      bookOrder = bookMatch.order;
+      rest = words.slice(bookMatch.wordsUsed).join(" ").trim();
+    } else if (lastBookOrder !== null && /^[\d:\s-]+$/.test(segment)) {
+      // segmento sin nombre de libro: continúa el libro anterior (ej. ", 15, 22-24")
+      bookOrder = lastBookOrder;
+      rest = segment;
+    } else {
+      unmatched.push(segment);
+      continue;
+    }
+
+    if (!rest) {
+      // libro completo sin capítulo (ej. "Efesios")
+      const total = chaptersOf(bookOrder);
+      const bookMeta = BOOKS.find((b) => b.order === bookOrder)!;
+      for (let c = 1; c <= total; c++) {
+        refs.push({ bookOrder, bookName: bookMeta.name, chapterNumber: c });
+      }
+      lastBookOrder = bookOrder;
+      continue;
+    }
+
+    const chapters = expandRange(rest);
+    if (chapters.length === 0) {
+      unmatched.push(segment);
+      continue;
+    }
+    const bookMeta = BOOKS.find((b) => b.order === bookOrder)!;
+    for (const c of chapters) {
+      refs.push({ bookOrder, bookName: bookMeta.name, chapterNumber: c });
+    }
+    lastBookOrder = bookOrder;
+  }
+
+  return { refs, unmatched, lastBookOrder };
+}
+
 export function parseReadingPlanPaste(text: string): ReadingPlanParseResult {
   const refs: ParsedRef[] = [];
   const unmatched: string[] = [];
@@ -137,100 +231,29 @@ export function parseReadingPlanPaste(text: string): ReadingPlanParseResult {
 
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
 
-  for (let rawLine of lines) {
-    // quita encabezado de mes suelto
+  for (const rawLine of lines) {
     if (MONTH_HEADERS.has(normalizeToken(rawLine))) continue;
 
-    // quita un número de día suelto al inicio de la línea (ej. "7 " antes del texto)
-    rawLine = rawLine.replace(/^\d{1,2}\s+(?=\D)/, "");
-    if (!rawLine) continue;
+    // Probamos la línea tal cual (para no comernos el "1"/"2" de libros como
+    // "1 Samuel" o "2 Reyes"), y solo si eso no reconoce nada, probamos de
+    // nuevo quitando un posible número de día al inicio (ej. "7 Rut" -> "Rut").
+    // Se usa el resultado con menos fragmentos sin reconocer.
+    const direct = tryParseLine(rawLine, lastBookOrder);
+    let result = direct;
 
-    // línea tipo "1 y 2 Tesalonicenses" o "2 Pedro y Judas" o "Colosenses y Filemón"
-    // (varios libros completos separados por " y ", sin números de capítulo)
-    if (/\by\b/i.test(rawLine) && !/\d+\s*-\s*\d+/.test(rawLine)) {
-      const sides = rawLine.split(/\s+y\s+/i);
-      let allMatched = true;
-      const localRefs: ParsedRef[] = [];
-      let carryPrefix = "";
-      for (const side of sides) {
-        const words = side.trim().split(/\s+/);
-        // soporta "1 y 2 Tesalonicenses": el primer lado es solo "1", toma prefijo numérico
-        if (/^\d+$/.test(side.trim())) {
-          carryPrefix = side.trim();
-          continue;
+    if (direct.unmatched.length > 0) {
+      const strippedLine = rawLine.replace(/^\d{1,2}\s+/, "");
+      if (strippedLine !== rawLine) {
+        const stripped = tryParseLine(strippedLine, lastBookOrder);
+        if (stripped.unmatched.length < direct.unmatched.length) {
+          result = stripped;
         }
-        const fullWords = carryPrefix ? [carryPrefix, ...words] : words;
-        const m = matchBookAtStart(fullWords);
-        carryPrefix = "";
-        if (!m || m.wordsUsed !== fullWords.length) {
-          allMatched = false;
-          break;
-        }
-        const total = chaptersOf(m.order);
-        const bookMeta = BOOKS.find((b) => b.order === m.order)!;
-        for (let c = 1; c <= total; c++) {
-          localRefs.push({ bookOrder: m.order, bookName: bookMeta.name, chapterNumber: c });
-        }
-      }
-      if (allMatched && localRefs.length > 0) {
-        refs.push(...localRefs);
-        lastBookOrder = localRefs[localRefs.length - 1].bookOrder;
-        continue;
       }
     }
 
-    // segmentos separados por coma: cada uno puede traer su propio libro, o
-    // continuar el libro del segmento anterior (ej. "Sal. 1-2, 15, 22-24")
-    const segments = rawLine.split(",").map((s) => s.trim()).filter(Boolean);
-    let matchedAnything = false;
-
-    for (const segment of segments) {
-      const words = segment.split(/\s+/);
-      const bookMatch = matchBookAtStart(words);
-
-      let bookOrder: number | null = null;
-      let rest: string;
-
-      if (bookMatch) {
-        bookOrder = bookMatch.order;
-        rest = words.slice(bookMatch.wordsUsed).join(" ").trim();
-      } else if (lastBookOrder !== null && /^[\d:\s-]+$/.test(segment)) {
-        // segmento sin nombre de libro: continúa el libro anterior (ej. ", 15, 22-24")
-        bookOrder = lastBookOrder;
-        rest = segment;
-      } else {
-        unmatched.push(segment);
-        continue;
-      }
-
-      if (!rest) {
-        // libro completo sin capítulo (ej. "Efesios")
-        const total = chaptersOf(bookOrder);
-        const bookMeta = BOOKS.find((b) => b.order === bookOrder)!;
-        for (let c = 1; c <= total; c++) {
-          refs.push({ bookOrder, bookName: bookMeta.name, chapterNumber: c });
-        }
-        matchedAnything = true;
-        lastBookOrder = bookOrder;
-        continue;
-      }
-
-      const chapters = expandRange(rest);
-      if (chapters.length === 0) {
-        unmatched.push(segment);
-        continue;
-      }
-      const bookMeta = BOOKS.find((b) => b.order === bookOrder)!;
-      for (const c of chapters) {
-        refs.push({ bookOrder, bookName: bookMeta.name, chapterNumber: c });
-      }
-      matchedAnything = true;
-      lastBookOrder = bookOrder;
-    }
-
-    if (!matchedAnything && segments.length && !segments.every((s) => unmatched.includes(s))) {
-      // ya se registraron los no reconocidos arriba
-    }
+    refs.push(...result.refs);
+    unmatched.push(...result.unmatched);
+    lastBookOrder = result.lastBookOrder;
   }
 
   return { refs, unmatched };
