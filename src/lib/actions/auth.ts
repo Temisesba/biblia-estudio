@@ -29,9 +29,13 @@ export async function signUpAction(
   const fullName = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirm_password") ?? "");
 
-  if (!fullName || !email || !password) {
+  if (!fullName || !email || !password || !confirmPassword) {
     return { error: "Completa todos los campos." };
+  }
+  if (password !== confirmPassword) {
+    return { error: "Las contraseñas no coinciden." };
   }
 
   const supabase = await createClient();

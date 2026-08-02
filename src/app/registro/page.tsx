@@ -16,6 +16,7 @@ export default function RegistroPage() {
           { name: "full_name", label: "Nombre completo", placeholder: "Juan Pérez" },
           { name: "email", label: "Correo electrónico", type: "email", placeholder: "tu@correo.com" },
           { name: "password", label: "Contraseña", type: "password" },
+          { name: "confirm_password", label: "Confirmar contraseña", type: "password" },
         ]}
       />
       <p className="text-sm text-foreground/60">
