@@ -2,14 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { Highlight, Note } from "@/types/database";
-import { HIGHLIGHT_COLORS } from "@/lib/highlight-colors";
-import {
-  createNote,
-  updateNote,
-  deleteNote,
-  deleteHighlight,
-  updateHighlight,
-} from "@/lib/actions/study";
+import { createNote, updateNote, deleteNote, deleteHighlight } from "@/lib/actions/study";
 
 export function ChapterNotesPanel({
   bookId,
@@ -187,26 +180,12 @@ function HighlightItem({
           <p className="italic">&ldquo;{highlight.selected_text}&rdquo;</p>
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <div className="flex gap-1">
-          {HIGHLIGHT_COLORS.map((c) => (
-            <button
-              key={c.value}
-              onClick={() =>
-                startTransition(() => updateHighlight(highlight.id, { color: c.value }, bookOrder, chapterNumber))
-              }
-              className="h-4 w-4 rounded-full border border-black/10"
-              style={{ backgroundColor: c.value }}
-            />
-          ))}
-        </div>
-        <button
-          onClick={() => startTransition(() => deleteHighlight(highlight.id, bookOrder, chapterNumber))}
-          className="text-xs text-red-500 hover:underline"
-        >
-          Eliminar
-        </button>
-      </div>
+      <button
+        onClick={() => startTransition(() => deleteHighlight(highlight.id, bookOrder, chapterNumber))}
+        className="shrink-0 text-xs text-red-500 hover:underline"
+      >
+        Eliminar
+      </button>
     </li>
   );
 }

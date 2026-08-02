@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import type {
@@ -77,6 +77,10 @@ export function VerseList({
   onJumpToNotes?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [optimisticHighlights, addOptimisticHighlight] = useOptimistic<Highlight[], Highlight>(
+    highlights,
+    (state, newHighlight) => [...state, newHighlight]
+  );
   const [selection, setSelection] = useState<Selection | null>(null);
   const [commentFor, setCommentFor] = useState<Selection | null>(null);
   const [commentText, setCommentText] = useState("");
@@ -98,6 +102,7 @@ export function VerseList({
     topics: (PersonalVerseTopic & { topicName: string; topicSlug: string })[];
   } | null>(null);
   const [pending, startTransition] = useTransition();
+  const [revealedFavoriteVerse, setRevealedFavoriteVerse] = useState<number | null>(null);
 
   function updateSelectionFromDOM() {
     const sel = window.getSelection();
@@ -163,7 +168,25 @@ export function VerseList({
 
   function applyHighlight(type: "resaltado" | "subrayado", color: string) {
     if (!selection) return;
+    const optimisticEntry: Highlight = {
+      id: `optimistic-${Date.now()}`,
+      user_id: "",
+      book_id: bookId,
+      chapter_number: chapterNumber,
+      verse_start: selection.verseStart,
+      verse_end: selection.verseEnd,
+      char_start: selection.charStart,
+      char_end: selection.charEnd,
+      selected_text: selection.text,
+      type,
+      color,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    window.getSelection()?.removeAllRanges();
+    setSelection(null);
     startTransition(async () => {
+      addOptimisticHighlight(optimisticEntry);
       await createHighlight({
         bookId,
         bookOrder,
@@ -176,8 +199,6 @@ export function VerseList({
         type,
         color,
       });
-      window.getSelection()?.removeAllRanges();
-      setSelection(null);
     });
   }
 
@@ -355,7 +376,7 @@ export function VerseList({
   }
 
   function highlightsFor(verseNumber: number) {
-    return highlights.filter((h) => verseNumber >= h.verse_start && verseNumber <= h.verse_end);
+    return optimisticHighlights.filter((h) => verseNumber >= h.verse_start && verseNumber <= h.verse_end);
   }
 
   function commentsFor(verseNumber: number) {
@@ -438,7 +459,13 @@ export function VerseList({
                     : undefined
               }
             >
-              <sup className="mr-1 select-none text-xs font-semibold text-primary">{v.verse_number}</sup>
+              <sup
+                role="button"
+                onClick={() => setRevealedFavoriteVerse((cur) => (cur === v.verse_number ? null : v.verse_number))}
+                className="mr-1 cursor-pointer select-none text-xs font-semibold text-primary"
+              >
+                {v.verse_number}
+              </sup>
               <span data-verse-text>
                 {marks.length ? renderSegments(v.text, marks, setViewingAnnotation) : v.text}
               </span>
@@ -457,7 +484,9 @@ export function VerseList({
                     })
                   )
                 }
-                className={`ml-2 inline-flex align-middle opacity-0 transition-opacity group-hover:opacity-100 disabled:animate-pulse disabled:opacity-100 ${fav ? "opacity-100" : ""}`}
+                className={`ml-2 inline-flex align-middle transition-opacity disabled:animate-pulse disabled:opacity-100 ${
+                  fav || revealedFavoriteVerse === v.verse_number ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                }`}
                 aria-label="Marcar como favorito"
               >
                 <Star size={14} fill={fav ? "currentColor" : "none"} className={fav ? "text-amber-500" : "text-foreground/40"} />

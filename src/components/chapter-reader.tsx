@@ -65,8 +65,9 @@ export function ChapterReader(props: {
             currentChapter={props.chapterNumber}
             readChapters={props.readChapters}
           />
-          <h1 className="text-xl font-semibold">
+          <h1 className="flex items-baseline gap-2 text-xl font-semibold">
             {props.bookName} {props.chapterNumber}
+            <span className="text-xs font-normal text-foreground/40">Reina-Valera 1909</span>
           </h1>
           <button
             type="button"
