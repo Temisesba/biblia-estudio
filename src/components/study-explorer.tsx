@@ -6,8 +6,9 @@ import { slugify } from "@/lib/books-meta";
 import { ReadingCalendar } from "@/components/reading-calendar";
 import type { Highlight, Note, Favorite, ReadingProgress } from "@/types/database";
 import type { WithBookName } from "@/lib/data/study";
+import type { PersonalTaggedVerse } from "@/lib/data/personal-topics";
 
-type Filter = "resaltados" | "subrayados" | "comentarios" | "notas" | "favoritos" | "historial";
+type Filter = "resaltados" | "subrayados" | "comentarios" | "notas" | "favoritos" | "etiquetas" | "historial";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "resaltados", label: "Resaltados" },
@@ -15,6 +16,7 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "comentarios", label: "Comentarios" },
   { id: "notas", label: "Notas generales" },
   { id: "favoritos", label: "Favoritos" },
+  { id: "etiquetas", label: "Mis etiquetas" },
   { id: "historial", label: "Historial de lectura" },
 ];
 
@@ -27,11 +29,13 @@ export function StudyExplorer({
   notes,
   favorites,
   progress,
+  personalTags,
 }: {
   highlights: (Highlight & WithBookName)[];
   notes: (Note & WithBookName)[];
   favorites: (Favorite & WithBookName)[];
   progress: (ReadingProgress & WithBookName)[];
+  personalTags: PersonalTaggedVerse[];
 }) {
   const [filter, setFilter] = useState<Filter>("resaltados");
 
@@ -121,6 +125,18 @@ export function StudyExplorer({
                 ? `${f.book_name} ${f.chapter_number}:${f.verse_start === f.verse_end ? f.verse_start : `${f.verse_start}-${f.verse_end}`}`
                 : `${f.book_name} ${f.chapter_number}`,
             date: f.created_at,
+          }))}
+        />
+      )}
+
+      {filter === "etiquetas" && (
+        <ItemList
+          empty="Aún no has creado etiquetas personales. Selecciona texto en el lector y usa el botón 🔖."
+          items={personalTags.map((t, i) => ({
+            key: `${t.href}-${t.verseNumber}-${t.topicName}-${i}`,
+            href: t.href,
+            title: `${t.bookName} ${t.chapterNumber}:${t.verseNumber}`,
+            body: `#${t.topicName}`,
           }))}
         />
       )}

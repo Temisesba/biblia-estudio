@@ -164,6 +164,28 @@ create table public.favorites (
 );
 create index favorites_user_lookup_idx on public.favorites (user_id, book_id, chapter_number);
 
+-- ---------- Etiquetas personales (privadas, para que cada usuario organice su propia búsqueda) ----------
+create table public.personal_topics (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  name text not null,
+  slug text not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, slug)
+);
+
+create table public.personal_verse_topics (
+  id uuid primary key default gen_random_uuid(),
+  personal_topic_id uuid not null references public.personal_topics(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  book_id int not null references public.books(id) on delete cascade,
+  chapter_number int not null,
+  verse_number int not null,
+  created_at timestamptz not null default now(),
+  unique (personal_topic_id, book_id, chapter_number, verse_number)
+);
+create index personal_verse_topics_lookup_idx on public.personal_verse_topics (user_id, book_id, chapter_number);
+
 create table public.reading_progress (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -228,6 +250,8 @@ alter table public.invite_codes enable row level security;
 alter table public.highlights enable row level security;
 alter table public.notes enable row level security;
 alter table public.favorites enable row level security;
+alter table public.personal_topics enable row level security;
+alter table public.personal_verse_topics enable row level security;
 alter table public.reading_progress enable row level security;
 alter table public.reading_plans enable row level security;
 alter table public.reading_plan_days enable row level security;
@@ -292,6 +316,14 @@ create policy "notes_owner" on public.notes for all
   with check (user_id = auth.uid());
 
 create policy "favorites_owner" on public.favorites for all
+  using (user_id = auth.uid() or public.is_admin())
+  with check (user_id = auth.uid());
+
+create policy "personal_topics_owner" on public.personal_topics for all
+  using (user_id = auth.uid() or public.is_admin())
+  with check (user_id = auth.uid());
+
+create policy "personal_verse_topics_owner" on public.personal_verse_topics for all
   using (user_id = auth.uid() or public.is_admin())
   with check (user_id = auth.uid());
 

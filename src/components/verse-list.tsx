@@ -2,8 +2,19 @@
 
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import type { Verse, Highlight, Favorite, Note, PublicAnnotation, Topic, VerseTopic } from "@/types/database";
+import type {
+  Verse,
+  Highlight,
+  Favorite,
+  Note,
+  PublicAnnotation,
+  Topic,
+  VerseTopic,
+  PersonalTopic,
+  PersonalVerseTopic,
+} from "@/types/database";
 import type { ChapterTopicsMap } from "@/lib/data/topics";
+import type { ChapterPersonalTopicsMap } from "@/lib/data/personal-topics";
 import { HIGHLIGHT_COLORS, DEFAULT_COLOR } from "@/lib/highlight-colors";
 import { createHighlight, deleteHighlight, toggleFavorite, createNote } from "@/lib/actions/study";
 import {
@@ -12,7 +23,12 @@ import {
   deletePublicAnnotation,
 } from "@/lib/actions/annotations";
 import { getOrCreateTopic, tagVerses, untagVerse } from "@/lib/actions/topics";
-import { Star, MessageCircle, Tag } from "lucide-react";
+import {
+  getOrCreatePersonalTopic,
+  tagVersesPersonal,
+  untagVersePersonal,
+} from "@/lib/actions/personal-topics";
+import { Star, MessageCircle, Tag, Bookmark } from "lucide-react";
 
 interface Selection {
   verseStart: number;
@@ -37,6 +53,8 @@ export function VerseList({
   publicAnnotations,
   chapterTopics,
   allTopics,
+  chapterPersonalTopics,
+  allPersonalTopics,
   isAdmin,
   searchQuery,
   onJumpToNotes,
@@ -51,6 +69,8 @@ export function VerseList({
   publicAnnotations: PublicAnnotation[];
   chapterTopics: ChapterTopicsMap;
   allTopics: (Topic & { verseCount: number })[];
+  chapterPersonalTopics: ChapterPersonalTopicsMap;
+  allPersonalTopics: (PersonalTopic & { verseCount: number })[];
   isAdmin: boolean;
   searchQuery?: string;
   onJumpToNotes?: () => void;
@@ -69,6 +89,12 @@ export function VerseList({
   const [viewingVerseTopics, setViewingVerseTopics] = useState<{
     verseNumber: number;
     topics: (VerseTopic & { topicName: string; topicSlug: string })[];
+  } | null>(null);
+  const [personalTagFor, setPersonalTagFor] = useState<Selection | null>(null);
+  const [personalTagQuery, setPersonalTagQuery] = useState("");
+  const [viewingVersePersonalTopics, setViewingVersePersonalTopics] = useState<{
+    verseNumber: number;
+    topics: (PersonalVerseTopic & { topicName: string; topicSlug: string })[];
   } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -241,6 +267,55 @@ export function VerseList({
     });
   }
 
+  function openPersonalTag() {
+    if (!selection) return;
+    setPersonalTagFor(selection);
+    setPersonalTagQuery("");
+    setSelection(null);
+  }
+
+  function applyPersonalTag(personalTopicId: string) {
+    if (!personalTagFor) return;
+    startTransition(async () => {
+      await tagVersesPersonal({
+        personalTopicId,
+        bookId,
+        bookOrder,
+        chapterNumber,
+        verseStart: personalTagFor.verseStart,
+        verseEnd: personalTagFor.verseEnd,
+      });
+      window.getSelection()?.removeAllRanges();
+      setPersonalTagFor(null);
+      setPersonalTagQuery("");
+    });
+  }
+
+  function createAndApplyPersonalTag() {
+    if (!personalTagQuery.trim() || !personalTagFor) return;
+    startTransition(async () => {
+      const topic = await getOrCreatePersonalTopic(personalTagQuery.trim());
+      await tagVersesPersonal({
+        personalTopicId: topic.id,
+        bookId,
+        bookOrder,
+        chapterNumber,
+        verseStart: personalTagFor.verseStart,
+        verseEnd: personalTagFor.verseEnd,
+      });
+      window.getSelection()?.removeAllRanges();
+      setPersonalTagFor(null);
+      setPersonalTagQuery("");
+    });
+  }
+
+  function removeVersePersonalTopic(id: string) {
+    startTransition(async () => {
+      await untagVersePersonal(id, bookOrder, chapterNumber);
+      setViewingVersePersonalTopics(null);
+    });
+  }
+
   function removeVerseTopic(id: string) {
     startTransition(async () => {
       await untagVerse(id, bookOrder, chapterNumber);
@@ -279,6 +354,7 @@ export function VerseList({
         onComment={openComment}
         onPublicNote={openPublicNote}
         onTag={openTag}
+        onPersonalTag={openPersonalTag}
         onDismiss={() => {
           window.getSelection()?.removeAllRanges();
           setSelection(null);
@@ -292,6 +368,7 @@ export function VerseList({
           const vComments = commentsFor(v.verse_number);
           const vAnnotations = annotationsFor(v.verse_number);
           const vTopics = chapterTopics[v.verse_number] ?? [];
+          const vPersonalTopics = chapterPersonalTopics[v.verse_number] ?? [];
           const wholeVerseHighlight = vHighlights.find((h) => h.char_start === null);
           const partial = vHighlights.filter((h) => h.char_start !== null && h.verse_start === h.verse_end);
 
@@ -374,6 +451,19 @@ export function VerseList({
                   aria-label={`Ver temas de este versículo`}
                 >
                   <Tag size={14} />
+                </button>
+              )}
+              {vPersonalTopics.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setViewingVersePersonalTopics({ verseNumber: v.verse_number, topics: vPersonalTopics })
+                  }
+                  title={vPersonalTopics.map((t) => t.topicName).join(", ")}
+                  className="ml-1 inline-flex align-middle text-indigo-600 dark:text-indigo-400"
+                  aria-label="Ver mis etiquetas personales de este versículo"
+                >
+                  <Bookmark size={14} fill="currentColor" className="text-indigo-600/20 dark:text-indigo-400/20" />
                 </button>
               )}
             </p>
@@ -616,6 +706,92 @@ export function VerseList({
           </div>
         </div>
       )}
+
+      {personalTagFor && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4" onClick={() => setPersonalTagFor(null)}>
+          <div
+            className="w-full max-w-md rounded-lg border border-border bg-background p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-2 text-sm font-medium">
+              Mi etiqueta para: <span className="italic text-foreground/70">&ldquo;{personalTagFor.text}&rdquo;</span>
+            </p>
+            <p className="mb-2 text-xs text-foreground/50">Solo tú puedes ver tus propias etiquetas.</p>
+            <input
+              autoFocus
+              value={personalTagQuery}
+              onChange={(e) => setPersonalTagQuery(e.target.value)}
+              placeholder="Buscar o crear etiqueta (ej. para orar, releer)"
+              className="w-full rounded-md border border-border bg-background p-2 text-sm outline-none focus:border-primary"
+            />
+            <div className="mt-2 flex max-h-48 flex-col gap-1 overflow-y-auto">
+              {allPersonalTopics
+                .filter((t) => t.name.toLowerCase().includes(personalTagQuery.trim().toLowerCase()))
+                .map((t) => (
+                  <button
+                    key={t.id}
+                    disabled={pending}
+                    onClick={() => applyPersonalTag(t.id)}
+                    className="rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50"
+                  >
+                    #{t.name} <span className="text-xs text-foreground/40">({t.verseCount})</span>
+                  </button>
+                ))}
+              {personalTagQuery.trim() &&
+                !allPersonalTopics.some((t) => t.name.toLowerCase() === personalTagQuery.trim().toLowerCase()) && (
+                  <button
+                    disabled={pending}
+                    onClick={createAndApplyPersonalTag}
+                    className="rounded-md border border-dashed border-border px-2 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50"
+                  >
+                    Crear etiqueta &ldquo;{personalTagQuery.trim()}&rdquo;
+                  </button>
+                )}
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button onClick={() => setPersonalTagFor(null)} className="rounded-md px-3 py-1.5 text-sm hover:bg-muted">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingVersePersonalTopics && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => setViewingVersePersonalTopics(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-border bg-background p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-3 text-sm font-medium">Mis etiquetas en este versículo</p>
+            <ul className="flex flex-col gap-2">
+              {viewingVersePersonalTopics.topics.map((t) => (
+                <li key={t.id} className="flex items-center justify-between gap-2 rounded-md border border-border p-2 text-sm">
+                  <span className="font-medium text-indigo-600 dark:text-indigo-400">#{t.topicName}</span>
+                  <button
+                    disabled={pending}
+                    onClick={() => removeVersePersonalTopic(t.id)}
+                    className="text-xs text-red-500 hover:underline disabled:opacity-50"
+                  >
+                    Quitar
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={() => setViewingVersePersonalTopics(null)}
+                className="rounded-md px-3 py-1.5 text-sm hover:bg-muted"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -681,6 +857,7 @@ function SelectionToolbar({
   onComment,
   onPublicNote,
   onTag,
+  onPersonalTag,
   onDismiss,
 }: {
   disabled: boolean;
@@ -691,6 +868,7 @@ function SelectionToolbar({
   onComment: () => void;
   onPublicNote: () => void;
   onTag: () => void;
+  onPersonalTag: () => void;
   onDismiss: () => void;
 }) {
   return (
@@ -745,6 +923,14 @@ function SelectionToolbar({
           🏷️
         </button>
       )}
+      <button
+        onClick={onPersonalTag}
+        disabled={disabled}
+        title="Mi etiqueta personal (solo tú la ves)"
+        className="rounded px-2 py-1 text-sm hover:bg-muted disabled:pointer-events-none"
+      >
+        🔖
+      </button>
       {!disabled && (
         <button onClick={onDismiss} title="Cerrar" className="rounded px-2 py-1 text-sm hover:bg-muted">
           ✕

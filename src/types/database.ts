@@ -76,6 +76,24 @@ export interface VerseTopic {
   created_at: string;
 }
 
+export interface PersonalTopic {
+  id: string;
+  user_id: string;
+  name: string;
+  slug: string;
+  created_at: string;
+}
+
+export interface PersonalVerseTopic {
+  id: string;
+  personal_topic_id: string;
+  user_id: string;
+  book_id: number;
+  chapter_number: number;
+  verse_number: number;
+  created_at: string;
+}
+
 export interface PublicAnnotation {
   id: string;
   book_id: number;
