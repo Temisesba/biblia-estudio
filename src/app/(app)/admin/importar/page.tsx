@@ -1,6 +1,8 @@
+import { ModernizationImporter } from "@/components/modernization-importer";
+
 export default function AdminImportarPage() {
   return (
-    <div className="flex max-w-2xl flex-col gap-4">
+    <div className="flex max-w-2xl flex-col gap-6">
       <h1 className="text-xl font-semibold">Importar contenido desde Google Sheets</h1>
       <p className="text-sm text-foreground/70">
         El texto bíblico y los contextos de cada capítulo se administran en la hoja de cálculo
@@ -21,6 +23,8 @@ export default function AdminImportarPage() {
         <code className="rounded bg-muted px-1.5 py-0.5">npm run import:sheets</code> desde el
         repositorio, apuntando a la URL exportada en CSV de cada hoja.
       </p>
+
+      <ModernizationImporter />
     </div>
   );
 }
