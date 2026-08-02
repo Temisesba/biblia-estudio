@@ -4,7 +4,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { OLD_TESTAMENT, NEW_TESTAMENT, slugify, type BookMeta } from "@/lib/books-meta";
 
-export function BookPicker({ currentOrder, currentChapter }: { currentOrder?: number; currentChapter?: number }) {
+export function BookPicker({
+  currentOrder,
+  currentChapter,
+  readChapters,
+}: {
+  currentOrder?: number;
+  currentChapter?: number;
+  readChapters?: Record<number, number[]>;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [activeBook, setActiveBook] = useState<BookMeta | null>(
@@ -53,19 +61,26 @@ export function BookPicker({ currentOrder, currentChapter }: { currentOrder?: nu
           <div className="w-1/2 overflow-y-auto p-2">
             {activeBook ? (
               <div className="grid grid-cols-6 gap-1">
-                {Array.from({ length: activeBook.chapters }, (_, i) => i + 1).map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => goTo(activeBook, c)}
-                    className={`rounded py-1 text-sm hover:bg-primary hover:text-primary-foreground ${
-                      activeBook.order === currentOrder && c === currentChapter
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
+                {Array.from({ length: activeBook.chapters }, (_, i) => i + 1).map((c) => {
+                  const isCurrent = activeBook.order === currentOrder && c === currentChapter;
+                  const isRead = readChapters?.[activeBook.order]?.includes(c);
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => goTo(activeBook, c)}
+                      title={isRead ? "Leído" : undefined}
+                      className={`rounded py-1 text-sm hover:bg-primary hover:text-primary-foreground ${
+                        isCurrent
+                          ? "bg-primary text-primary-foreground"
+                          : isRead
+                            ? "bg-emerald-500/25 text-emerald-800 dark:text-emerald-300"
+                            : "bg-muted"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <p className="p-4 text-sm text-foreground/50">Selecciona un libro</p>

@@ -29,6 +29,7 @@ export function ChapterReader(props: {
   notes: Note[];
   favorites: Favorite[];
   progress: ReadingProgress | null;
+  readChapters: Record<number, number[]>;
   context: ChapterContext | null;
   isAdmin: boolean;
   prevHref: string | null;
@@ -40,7 +41,11 @@ export function ChapterReader(props: {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <BookPicker currentOrder={props.bookOrder} currentChapter={props.chapterNumber} />
+          <BookPicker
+            currentOrder={props.bookOrder}
+            currentChapter={props.chapterNumber}
+            readChapters={props.readChapters}
+          />
           <h1 className="text-xl font-semibold">
             {props.bookName} {props.chapterNumber}
           </h1>
@@ -85,6 +90,8 @@ export function ChapterReader(props: {
           chapterNumber={props.chapterNumber}
           highlights={props.highlights}
           favorites={props.favorites}
+          notes={props.notes}
+          onJumpToNotes={() => setTab("notas")}
         />
       )}
       {tab === "contexto" && (

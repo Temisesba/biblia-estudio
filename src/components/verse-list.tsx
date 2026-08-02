@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import type { Verse, Highlight, Favorite } from "@/types/database";
+import type { Verse, Highlight, Favorite, Note } from "@/types/database";
 import { HIGHLIGHT_COLORS, DEFAULT_COLOR } from "@/lib/highlight-colors";
 import { createHighlight, deleteHighlight, toggleFavorite, createNote } from "@/lib/actions/study";
-import { Star } from "lucide-react";
+import { Star, MessageCircle } from "lucide-react";
 
 interface Selection {
   verseStart: number;
@@ -23,6 +23,8 @@ export function VerseList({
   chapterNumber,
   highlights,
   favorites,
+  notes,
+  onJumpToNotes,
 }: {
   verses: Verse[];
   bookId: number;
@@ -30,6 +32,8 @@ export function VerseList({
   chapterNumber: number;
   highlights: Highlight[];
   favorites: Favorite[];
+  notes: Note[];
+  onJumpToNotes?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -116,6 +120,7 @@ export function VerseList({
         chapterNumber,
         verseNumber: commentFor.verseStart,
         highlightId: null,
+        quotedText: commentFor.text,
         content: commentText.trim(),
       });
       window.getSelection()?.removeAllRanges();
@@ -134,6 +139,10 @@ export function VerseList({
 
   function highlightsFor(verseNumber: number) {
     return highlights.filter((h) => verseNumber >= h.verse_start && verseNumber <= h.verse_end);
+  }
+
+  function commentsFor(verseNumber: number) {
+    return notes.filter((n) => n.verse_number === verseNumber);
   }
 
   return (
@@ -155,6 +164,7 @@ export function VerseList({
         {verses.map((v) => {
           const vHighlights = highlightsFor(v.verse_number);
           const fav = favoriteFor(v.verse_number);
+          const vComments = commentsFor(v.verse_number);
           const wholeVerseHighlight = vHighlights.find((h) => h.char_start === null);
           const partial = vHighlights.filter((h) => h.char_start !== null && h.verse_start === h.verse_end);
 
@@ -188,6 +198,17 @@ export function VerseList({
               >
                 <Star size={14} fill={fav ? "currentColor" : "none"} className={fav ? "text-amber-500" : "text-foreground/40"} />
               </button>
+              {vComments.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onJumpToNotes?.()}
+                  title={vComments.map((c) => c.content).join("\n\n")}
+                  className="ml-1 inline-flex align-middle text-primary"
+                  aria-label={`Ver ${vComments.length} comentario(s) en este versículo`}
+                >
+                  <MessageCircle size={14} fill="currentColor" className="text-primary/20" />
+                </button>
+              )}
             </p>
           );
         })}

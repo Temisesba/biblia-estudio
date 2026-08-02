@@ -81,6 +81,7 @@ export interface Note {
   chapter_number: number;
   verse_number: number | null;
   highlight_id: string | null;
+  quoted_text: string | null;
   content: string;
   created_at: string;
   updated_at: string;

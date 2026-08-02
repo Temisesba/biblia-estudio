@@ -108,6 +108,27 @@ export async function getUserChapterProgress(
   return (data as ReadingProgress) ?? null;
 }
 
+export async function getReadChaptersMap(userId: string): Promise<Record<number, number[]>> {
+  const supabase = await createClient();
+  const [{ data: bookRows }, { data: progressRows }] = await Promise.all([
+    supabase.from("books").select("id, order"),
+    supabase
+      .from("reading_progress")
+      .select("book_id, chapter_number")
+      .eq("user_id", userId)
+      .eq("status", "terminado"),
+  ]);
+
+  const idToOrder = new Map((bookRows ?? []).map((r) => [r.id as number, r.order as number]));
+  const map: Record<number, number[]> = {};
+  for (const row of progressRows ?? []) {
+    const order = idToOrder.get(row.book_id as number);
+    if (order === undefined) continue;
+    (map[order] ??= []).push(row.chapter_number as number);
+  }
+  return map;
+}
+
 export async function getBookIdMap(): Promise<Record<number, number>> {
   const supabase = await createClient();
   const { data } = await supabase.from("books").select("id, order");

@@ -91,7 +91,7 @@ export function StudyExplorer({
             key: n.id,
             href: href(n.book_name, n.chapter_number),
             title: `${n.book_name} ${n.chapter_number}:${n.verse_number}`,
-            body: n.content,
+            body: n.quoted_text ? `"${n.quoted_text}" — ${n.content}` : n.content,
             date: n.created_at,
           }))}
         />

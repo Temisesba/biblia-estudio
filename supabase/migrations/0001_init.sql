@@ -107,6 +107,7 @@ create table public.notes (
   chapter_number int not null,
   verse_number int, -- null = nota general del capítulo
   highlight_id uuid references public.highlights(id) on delete cascade, -- si el comentario está vinculado a una marcación
+  quoted_text text, -- texto exacto seleccionado/subrayado al crear el comentario
   content text not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

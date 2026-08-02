@@ -81,6 +81,7 @@ export async function createNote(input: {
   chapterNumber: number;
   verseNumber: number | null;
   highlightId: string | null;
+  quotedText?: string | null;
   content: string;
 }) {
   const { supabase, userId } = await requireUser();
@@ -92,6 +93,7 @@ export async function createNote(input: {
       chapter_number: input.chapterNumber,
       verse_number: input.verseNumber,
       highlight_id: input.highlightId,
+      quoted_text: input.quotedText ?? null,
       content: input.content,
     })
     .select("*")

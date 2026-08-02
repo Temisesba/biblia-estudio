@@ -113,6 +113,11 @@ function CommentItem({
         <span>Versículo {note.verse_number}</span>
         <span>{new Date(note.created_at).toLocaleDateString("es-MX")}</span>
       </div>
+      {note.quoted_text && (
+        <p className="mb-2 border-l-2 border-primary/40 pl-2 text-xs italic text-foreground/60">
+          &ldquo;{note.quoted_text}&rdquo;
+        </p>
+      )}
       {editing ? (
         <>
           <textarea
