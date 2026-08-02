@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { BookPicker } from "@/components/book-picker";
 import { VerseList } from "@/components/verse-list";
 import { ContextPanel } from "@/components/context-panel";
@@ -45,6 +45,8 @@ export function ChapterReader(props: {
   nextHref: string | null;
 }) {
   const [tab, setTab] = useState<Tab>("texto");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [chapterQuery, setChapterQuery] = useState("");
 
   return (
     <div className="flex flex-col gap-4">
@@ -58,6 +60,39 @@ export function ChapterReader(props: {
           <h1 className="text-xl font-semibold">
             {props.bookName} {props.chapterNumber}
           </h1>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchOpen((o) => !o);
+              if (searchOpen) setChapterQuery("");
+            }}
+            title="Buscar en este capítulo"
+            aria-label="Buscar en este capítulo"
+            className="rounded-md border border-border p-1.5 hover:bg-muted"
+          >
+            <Search size={16} />
+          </button>
+          {searchOpen && (
+            <div className="flex items-center gap-1">
+              <input
+                autoFocus
+                value={chapterQuery}
+                onChange={(e) => setChapterQuery(e.target.value)}
+                placeholder="Buscar en este capítulo..."
+                className="w-40 rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary sm:w-56"
+              />
+              {chapterQuery && (
+                <button
+                  type="button"
+                  onClick={() => setChapterQuery("")}
+                  aria-label="Limpiar búsqueda"
+                  className="rounded p-1 hover:bg-muted"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           {props.prevHref ? (
@@ -102,6 +137,7 @@ export function ChapterReader(props: {
           notes={props.notes}
           publicAnnotations={props.publicAnnotations}
           isAdmin={props.isAdmin}
+          searchQuery={chapterQuery}
           onJumpToNotes={() => setTab("notas")}
         />
       )}

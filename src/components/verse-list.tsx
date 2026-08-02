@@ -17,8 +17,6 @@ interface Selection {
   charStart: number | null;
   charEnd: number | null;
   text: string;
-  x: number;
-  y: number;
 }
 
 type Mark =
@@ -35,6 +33,7 @@ export function VerseList({
   notes,
   publicAnnotations,
   isAdmin,
+  searchQuery,
   onJumpToNotes,
 }: {
   verses: Verse[];
@@ -46,6 +45,7 @@ export function VerseList({
   notes: Note[];
   publicAnnotations: PublicAnnotation[];
   isAdmin: boolean;
+  searchQuery?: string;
   onJumpToNotes?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,16 +90,12 @@ export function VerseList({
       }
     }
 
-    const rect = range.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
     setSelection({
       verseStart: Math.min(verseStart, verseEnd),
       verseEnd: Math.max(verseStart, verseEnd),
       charStart,
       charEnd,
       text,
-      x: rect.left - containerRect.left + rect.width / 2,
-      y: rect.top - containerRect.top,
     });
   }
 
@@ -214,7 +210,6 @@ export function VerseList({
     <div className="relative" ref={containerRef} onMouseUp={handleMouseUp}>
       {selection && (
         <SelectionToolbar
-          selection={selection}
           isAdmin={isAdmin}
           canPublicNote={selection.verseStart === selection.verseEnd && selection.charStart !== null}
           onColor={(color) => applyHighlight("resaltado", color)}
@@ -255,12 +250,23 @@ export function VerseList({
             })),
           ];
 
+          const query = searchQuery?.trim().toLowerCase();
+          const matchesSearch = !query || v.text.toLowerCase().includes(query);
+
           return (
             <p
               key={v.id}
               data-verse={v.verse_number}
-              className="group relative rounded px-2 py-0.5 hover:bg-muted/60"
-              style={wholeVerseHighlight ? { backgroundColor: wholeVerseHighlight.color, textDecoration: wholeVerseHighlight.type === "subrayado" ? "underline" : undefined } : undefined}
+              className={`group relative rounded px-2 py-0.5 hover:bg-muted/60 transition-opacity ${
+                query ? (matchesSearch ? "" : "opacity-30") : ""
+              }`}
+              style={
+                wholeVerseHighlight
+                  ? { backgroundColor: wholeVerseHighlight.color, textDecoration: wholeVerseHighlight.type === "subrayado" ? "underline" : undefined }
+                  : query && matchesSearch
+                    ? { backgroundColor: "color-mix(in srgb, var(--primary) 15%, transparent)" }
+                    : undefined
+              }
             >
               <sup className="mr-1 select-none text-xs font-semibold text-primary">{v.verse_number}</sup>
               <span data-verse-text>
@@ -504,7 +510,6 @@ function closestVerseEl(node: Node): HTMLElement | null {
 }
 
 function SelectionToolbar({
-  selection,
   isAdmin,
   canPublicNote,
   onColor,
@@ -513,7 +518,6 @@ function SelectionToolbar({
   onPublicNote,
   onDismiss,
 }: {
-  selection: Selection;
   isAdmin: boolean;
   canPublicNote: boolean;
   onColor: (color: string) => void;
@@ -524,8 +528,7 @@ function SelectionToolbar({
 }) {
   return (
     <div
-      className="absolute z-30 flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-lg border border-border bg-background p-1.5 shadow-lg"
-      style={{ left: selection.x, top: Math.max(selection.y - 8, 0) }}
+      className="fixed right-2 top-16 z-40 flex flex-wrap items-center gap-1 rounded-lg border border-border bg-background p-1.5 shadow-lg sm:right-4"
     >
       {HIGHLIGHT_COLORS.map((c) => (
         <button
