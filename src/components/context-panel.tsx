@@ -37,7 +37,7 @@ export function ContextPanel({
   isAdmin: boolean;
 }) {
   const [editing, setEditing] = useState(false);
-  const [innerTab, setInnerTab] = useState<InnerTab>("narrativa");
+  const [innerTab, setInnerTab] = useState<InnerTab>("desglose");
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(ALL_FIELDS.map((f) => [f.key, (context?.[f.key] as string) ?? ""]))
   );
@@ -93,16 +93,6 @@ export function ContextPanel({
       <div className="flex items-center justify-between">
         <div className="flex gap-1 border-b border-border">
           <button
-            onClick={() => setInnerTab("narrativa")}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              innerTab === "narrativa"
-                ? "border-primary text-primary"
-                : "border-transparent text-foreground/60 hover:text-foreground"
-            }`}
-          >
-            Narrativa
-          </button>
-          <button
             onClick={() => setInnerTab("desglose")}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               innerTab === "desglose"
@@ -111,6 +101,16 @@ export function ContextPanel({
             }`}
           >
             Desglose
+          </button>
+          <button
+            onClick={() => setInnerTab("narrativa")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              innerTab === "narrativa"
+                ? "border-primary text-primary"
+                : "border-transparent text-foreground/60 hover:text-foreground"
+            }`}
+          >
+            Narrativa
           </button>
         </div>
         {isAdmin && !editing && (
