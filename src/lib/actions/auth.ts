@@ -29,20 +29,12 @@ export async function signUpAction(
   const fullName = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const inviteCode = String(formData.get("invite_code") ?? "").trim();
 
-  if (!fullName || !email || !password || !inviteCode) {
-    return { error: "Completa todos los campos, incluyendo el código de invitación." };
+  if (!fullName || !email || !password) {
+    return { error: "Completa todos los campos." };
   }
 
   const supabase = await createClient();
-
-  const { data: isValid, error: validateError } = await supabase.rpc("validate_invite_code", {
-    p_code: inviteCode,
-  });
-  if (validateError || !isValid) {
-    return { error: "El código de invitación no es válido, ya expiró o alcanzó su límite de usos." };
-  }
 
   const { error: signUpError } = await supabase.auth.signUp({
     email,
@@ -52,8 +44,6 @@ export async function signUpAction(
   if (signUpError) {
     return { error: signUpError.message };
   }
-
-  await supabase.rpc("redeem_invite_code", { p_code: inviteCode });
 
   redirect("/leer");
 }

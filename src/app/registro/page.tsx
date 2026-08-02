@@ -7,9 +7,7 @@ export default function RegistroPage() {
     <main className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-16">
       <div className="flex flex-col items-center gap-1 text-center">
         <h1 className="text-2xl font-semibold">Crea tu cuenta</h1>
-        <p className="text-sm text-foreground/60">
-          El registro requiere un código de invitación proporcionado por tu administrador
-        </p>
+        <p className="text-sm text-foreground/60">Crea tu cuenta para empezar a leer y estudiar</p>
       </div>
       <AuthForm
         action={signUpAction}
@@ -18,7 +16,6 @@ export default function RegistroPage() {
           { name: "full_name", label: "Nombre completo", placeholder: "Juan Pérez" },
           { name: "email", label: "Correo electrónico", type: "email", placeholder: "tu@correo.com" },
           { name: "password", label: "Contraseña", type: "password" },
-          { name: "invite_code", label: "Código de invitación", placeholder: "XXXX-XXXX" },
         ]}
       />
       <p className="text-sm text-foreground/60">
