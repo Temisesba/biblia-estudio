@@ -58,6 +58,7 @@ create table public.contexts (
   chapter_number int not null,
   historical_context text,
   summary text,
+  explanation text,
   central_teaching text,
   reveals_about_god text,
   reveals_about_humanity text,

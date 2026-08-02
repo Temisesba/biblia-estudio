@@ -47,6 +47,7 @@ export interface ChapterContext {
   chapter_number: number;
   historical_context: string | null;
   summary: string | null;
+  explanation: string | null;
   central_teaching: string | null;
   reveals_about_god: string | null;
   reveals_about_humanity: string | null;

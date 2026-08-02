@@ -7,6 +7,7 @@ import { saveChapterContext } from "@/lib/actions/context";
 const FIELDS: { key: keyof ChapterContext; label: string }[] = [
   { key: "historical_context", label: "Contexto histórico y bíblico" },
   { key: "summary", label: "Resumen del capítulo" },
+  { key: "explanation", label: "Explicación (texto libre, la lección o lo que compartirías como pastor)" },
   { key: "central_teaching", label: "Enseñanza central" },
   { key: "reveals_about_god", label: "Qué revela acerca de Dios" },
   { key: "reveals_about_humanity", label: "Qué revela acerca del ser humano" },
@@ -49,7 +50,7 @@ export function ContextPanel({
           <label key={f.key} className="flex flex-col gap-1 text-sm">
             <span className="font-medium">{f.label}</span>
             <textarea
-              rows={f.key === "summary" || f.key === "historical_context" ? 4 : 3}
+              rows={f.key === "explanation" ? 10 : f.key === "summary" || f.key === "historical_context" ? 4 : 3}
               value={values[f.key]}
               onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
               className="rounded-md border border-border bg-background p-2 outline-none focus:border-primary"
@@ -64,6 +65,7 @@ export function ContextPanel({
                 await saveChapterContext(bookId, bookOrder, chapterNumber, {
                   historical_context: values.historical_context || null,
                   summary: values.summary || null,
+                  explanation: values.explanation || null,
                   central_teaching: values.central_teaching || null,
                   reveals_about_god: values.reveals_about_god || null,
                   reveals_about_humanity: values.reveals_about_humanity || null,
@@ -99,8 +101,12 @@ export function ContextPanel({
       {FIELDS.map((f) => {
         const value = context?.[f.key] as string | null;
         if (!value) return null;
+        const isExplanation = f.key === "explanation";
         return (
-          <section key={f.key}>
+          <section
+            key={f.key}
+            className={isExplanation ? "rounded-lg border border-border bg-muted/60 p-4" : undefined}
+          >
             <h3 className="mb-1 font-semibold text-primary">{f.label}</h3>
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{value}</p>
           </section>

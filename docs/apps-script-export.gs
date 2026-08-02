@@ -96,6 +96,7 @@ function exportarContextos_(url, key, bookIdMap) {
         chapter_number: Number(r["Capitulo"]),
         historical_context: r["Contexto_Historico"] || null,
         summary: r["Resumen"] || null,
+        explanation: r["Explicacion"] || null,
         central_teaching: r["Ensenanza_Central"] || null,
         reveals_about_god: r["Revela_Dios"] || null,
         reveals_about_humanity: r["Revela_Humano"] || null,

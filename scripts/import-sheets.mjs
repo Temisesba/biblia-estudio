@@ -90,6 +90,7 @@ async function importContextos() {
         chapter_number: chapterNumber,
         historical_context: row.contexto_historico || null,
         summary: row.resumen || null,
+        explanation: row.explicacion || null,
         central_teaching: row.ensenanza_central || null,
         reveals_about_god: row.revela_dios || null,
         reveals_about_humanity: row.revela_humano || null,
