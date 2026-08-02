@@ -883,12 +883,11 @@ function SelectionToolbar({
   onDismiss: () => void;
 }) {
   const actionsDisabled = disabled || pending;
-  if (disabled && !pending) return null;
   return (
     <div
-      className={`flex items-center gap-1 rounded-md border border-border bg-muted/60 p-1 pr-2 mr-1 ${
-        pending ? "animate-pulse" : ""
-      }`}
+      className={`flex items-center gap-1 rounded-md border border-border bg-muted/60 p-1 pr-2 mr-1 transition-all ${
+        disabled ? "opacity-40" : "opacity-100"
+      } ${pending ? "animate-pulse" : ""}`}
     >
       {HIGHLIGHT_COLORS.map((c) => (
         <button
