@@ -53,6 +53,7 @@ export function ChapterReader(props: {
   nextHref: string | null;
 }) {
   const [tab, setTab] = useState<Tab>("texto");
+  const [jumpTarget, setJumpTarget] = useState<number | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [chapterQuery, setChapterQuery] = useState("");
 
@@ -152,6 +153,7 @@ export function ChapterReader(props: {
           isAdmin={props.isAdmin}
           searchQuery={chapterQuery}
           onJumpToNotes={() => setTab("notas")}
+          jumpToVerse={jumpTarget}
         />
       )}
       {tab === "contexto" && (
@@ -170,6 +172,11 @@ export function ChapterReader(props: {
           chapterNumber={props.chapterNumber}
           notes={props.notes}
           highlights={props.highlights}
+          chapterPersonalTopics={props.chapterPersonalTopics}
+          onJumpToVerse={(v) => {
+            setJumpTarget(v);
+            setTab("texto");
+          }}
         />
       )}
       {tab === "progreso" && (

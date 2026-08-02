@@ -75,7 +75,7 @@ export async function getAllPersonalTaggedVerses(userId: string): Promise<Person
       chapterNumber: l.chapter_number as number,
       verseNumber: l.verse_number as number,
       topicName: topicInfo?.name ?? "—",
-      href: book ? `/leer/${slugify(book.name)}/${l.chapter_number}` : "#",
+      href: book ? `/leer/${slugify(book.name)}/${l.chapter_number}?v=${l.verse_number}` : "#",
     };
   });
 }

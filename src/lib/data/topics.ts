@@ -84,7 +84,7 @@ export async function getVersesByTopicSlug(
         chapterNumber: link.chapter_number as number,
         verseNumber: link.verse_number as number,
         text: verseRow?.text ?? null,
-        href: book ? `/leer/${slugify(book.name)}/${link.chapter_number}` : "#",
+        href: book ? `/leer/${slugify(book.name)}/${link.chapter_number}?v=${link.verse_number}` : "#",
       };
     })
   );

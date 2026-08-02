@@ -3,6 +3,7 @@
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import type {
   Verse,
   Highlight,
@@ -59,6 +60,7 @@ export function VerseList({
   isAdmin,
   searchQuery,
   onJumpToNotes,
+  jumpToVerse,
 }: {
   verses: Verse[];
   bookId: number;
@@ -75,6 +77,7 @@ export function VerseList({
   isAdmin: boolean;
   searchQuery?: string;
   onJumpToNotes?: () => void;
+  jumpToVerse?: number | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [optimisticHighlights, addOptimisticHighlight] = useOptimistic<Highlight[], Highlight>(
@@ -103,6 +106,29 @@ export function VerseList({
   } | null>(null);
   const [pending, startTransition] = useTransition();
   const [revealedFavoriteVerse, setRevealedFavoriteVerse] = useState<number | null>(null);
+  const [flashVerse, setFlashVerse] = useState<number | null>(null);
+  const searchParams = useSearchParams();
+
+  function scrollAndFlash(target: number) {
+    const el = containerRef.current?.querySelector<HTMLElement>(`[data-verse="${target}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlashVerse(target);
+    setTimeout(() => setFlashVerse((cur) => (cur === target ? null : cur)), 2000);
+  }
+
+  useEffect(() => {
+    const target = Number(searchParams.get("v"));
+    if (!target || Number.isNaN(target)) return;
+    scrollAndFlash(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (jumpToVerse == null) return;
+    scrollAndFlash(jumpToVerse);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpToVerse]);
 
   function updateSelectionFromDOM() {
     const sel = window.getSelection();
@@ -448,9 +474,9 @@ export function VerseList({
             <p
               key={v.id}
               data-verse={v.verse_number}
-              className={`group relative rounded px-2 py-0.5 hover:bg-muted/60 transition-opacity ${
+              className={`group relative rounded px-2 py-0.5 hover:bg-muted/60 transition-all duration-700 ${
                 query ? (matchesSearch ? "" : "opacity-30") : ""
-              }`}
+              } ${flashVerse === v.verse_number ? "bg-primary/25" : ""}`}
               style={
                 wholeVerseHighlight
                   ? { backgroundColor: wholeVerseHighlight.color, textDecoration: wholeVerseHighlight.type === "subrayado" ? "underline" : undefined }

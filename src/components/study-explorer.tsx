@@ -20,8 +20,19 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "historial", label: "Historial de lectura" },
 ];
 
-function href(bookName: string, chapter: number) {
-  return `/leer/${slugify(bookName)}/${chapter}`;
+function href(bookName: string, chapter: number, verse?: number | null) {
+  const base = `/leer/${slugify(bookName)}/${chapter}`;
+  return verse ? `${base}?v=${verse}` : base;
+}
+
+function groupByTag(tags: PersonalTaggedVerse[]): [string, PersonalTaggedVerse[]][] {
+  const groups = new Map<string, PersonalTaggedVerse[]>();
+  for (const t of tags) {
+    const list = groups.get(t.topicName) ?? [];
+    list.push(t);
+    groups.set(t.topicName, list);
+  }
+  return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 }
 
 export function StudyExplorer({
@@ -65,7 +76,7 @@ export function StudyExplorer({
           empty="No tienes versículos resaltados todavía."
           items={resaltados.map((h) => ({
             key: h.id,
-            href: href(h.book_name, h.chapter_number),
+            href: href(h.book_name, h.chapter_number, h.verse_start),
             title: `${h.book_name} ${h.chapter_number}:${h.verse_start === h.verse_end ? h.verse_start : `${h.verse_start}-${h.verse_end}`}`,
             body: h.selected_text,
             date: h.created_at,
@@ -79,7 +90,7 @@ export function StudyExplorer({
           empty="No tienes versículos subrayados todavía."
           items={subrayados.map((h) => ({
             key: h.id,
-            href: href(h.book_name, h.chapter_number),
+            href: href(h.book_name, h.chapter_number, h.verse_start),
             title: `${h.book_name} ${h.chapter_number}:${h.verse_start === h.verse_end ? h.verse_start : `${h.verse_start}-${h.verse_end}`}`,
             body: h.selected_text,
             date: h.created_at,
@@ -93,7 +104,7 @@ export function StudyExplorer({
           empty="No has agregado comentarios todavía."
           items={comentarios.map((n) => ({
             key: n.id,
-            href: href(n.book_name, n.chapter_number),
+            href: href(n.book_name, n.chapter_number, n.verse_number),
             title: `${n.book_name} ${n.chapter_number}:${n.verse_number}`,
             body: n.quoted_text ? `"${n.quoted_text}" — ${n.content}` : n.content,
             date: n.created_at,
@@ -119,7 +130,7 @@ export function StudyExplorer({
           empty="No tienes favoritos todavía."
           items={favorites.map((f) => ({
             key: f.id,
-            href: href(f.book_name, f.chapter_number),
+            href: href(f.book_name, f.chapter_number, f.verse_start),
             title:
               f.verse_start && f.verse_end
                 ? `${f.book_name} ${f.chapter_number}:${f.verse_start === f.verse_end ? f.verse_start : `${f.verse_start}-${f.verse_end}`}`
@@ -129,17 +140,28 @@ export function StudyExplorer({
         />
       )}
 
-      {filter === "etiquetas" && (
-        <ItemList
-          empty="Aún no has creado etiquetas personales. Selecciona texto en el lector y usa el botón 🔖."
-          items={personalTags.map((t, i) => ({
-            key: `${t.href}-${t.verseNumber}-${t.topicName}-${i}`,
-            href: t.href,
-            title: `${t.bookName} ${t.chapterNumber}:${t.verseNumber}`,
-            body: `#${t.topicName}`,
-          }))}
-        />
-      )}
+      {filter === "etiquetas" &&
+        (personalTags.length === 0 ? (
+          <p className="text-sm text-foreground/50">
+            Aún no has creado etiquetas personales. Selecciona texto en el lector y usa el botón 🔖.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-6">
+            {groupByTag(personalTags).map(([tagName, verses]) => (
+              <div key={tagName}>
+                <h3 className="mb-2 text-sm font-semibold text-primary">#{tagName}</h3>
+                <ItemList
+                  empty=""
+                  items={verses.map((t, i) => ({
+                    key: `${t.href}-${i}`,
+                    href: t.href,
+                    title: `${t.bookName} ${t.chapterNumber}:${t.verseNumber}`,
+                  }))}
+                />
+              </div>
+            ))}
+          </div>
+        ))}
 
       {filter === "historial" && (
         <div className="flex flex-col gap-6 lg:flex-row">

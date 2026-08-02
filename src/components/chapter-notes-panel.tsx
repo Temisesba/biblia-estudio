@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { Highlight, Note } from "@/types/database";
+import type { ChapterPersonalTopicsMap } from "@/lib/data/personal-topics";
 import { createNote, updateNote, deleteNote, deleteHighlight } from "@/lib/actions/study";
 
 export function ChapterNotesPanel({
@@ -10,13 +11,20 @@ export function ChapterNotesPanel({
   chapterNumber,
   notes,
   highlights,
+  chapterPersonalTopics,
+  onJumpToVerse,
 }: {
   bookId: number;
   bookOrder: number;
   chapterNumber: number;
   notes: Note[];
   highlights: Highlight[];
+  chapterPersonalTopics: ChapterPersonalTopicsMap;
+  onJumpToVerse?: (verseNumber: number) => void;
 }) {
+  const taggedVerses = Object.entries(chapterPersonalTopics)
+    .map(([verseNumber, tags]) => ({ verseNumber: Number(verseNumber), tags }))
+    .sort((a, b) => a.verseNumber - b.verseNumber);
   const generalNote = notes.find((n) => n.verse_number === null);
   const verseComments = notes.filter((n) => n.verse_number !== null);
   const [generalText, setGeneralText] = useState(generalNote?.content ?? "");
@@ -42,6 +50,28 @@ export function ChapterNotesPanel({
 
   return (
     <div className="flex flex-col gap-8 py-4">
+      <section>
+        <h3 className="mb-2 font-semibold">Mis etiquetas ({taggedVerses.length})</h3>
+        {taggedVerses.length === 0 && (
+          <p className="text-sm text-foreground/50">Aún no has etiquetado versículos en este capítulo.</p>
+        )}
+        <ul className="flex flex-col gap-2">
+          {taggedVerses.map(({ verseNumber, tags }) => (
+            <li key={verseNumber} className="rounded-md border border-border p-3 text-sm">
+              <button
+                onClick={() => onJumpToVerse?.(verseNumber)}
+                className="font-medium text-primary hover:underline"
+              >
+                Versículo {verseNumber}
+              </button>
+              <p className="mt-1 text-foreground/70">
+                {tags.map((t) => `#${t.topicName}`).join("  ")}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <section>
         <h3 className="mb-2 font-semibold">Nota general del capítulo</h3>
         <textarea
