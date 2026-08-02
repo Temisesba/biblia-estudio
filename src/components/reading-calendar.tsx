@@ -16,6 +16,10 @@ const MONTHS = [
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
 
+function localDateKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function ReadingCalendar({ entries }: { entries: ReadingEntry[] }) {
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -27,7 +31,7 @@ export function ReadingCalendar({ entries }: { entries: ReadingEntry[] }) {
     const map = new Map<string, ReadingEntry[]>();
     for (const e of entries) {
       if (!e.last_read_at) continue;
-      const key = e.last_read_at.slice(0, 10);
+      const key = localDateKey(new Date(e.last_read_at));
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(e);
     }
@@ -44,6 +48,9 @@ export function ReadingCalendar({ entries }: { entries: ReadingEntry[] }) {
     ...Array(startOffset).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
+
+  const now = new Date();
+  const todayKey = localDateKey(now);
 
   return (
     <div className="rounded-lg border border-border p-4">
@@ -70,13 +77,14 @@ export function ReadingCalendar({ entries }: { entries: ReadingEntry[] }) {
           const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const dayEntries = byDay.get(key) ?? [];
           const isSelected = selectedDay === key;
+          const isToday = key === todayKey;
           return (
             <button
               key={i}
               onClick={() => setSelectedDay(dayEntries.length ? key : null)}
               className={`aspect-square rounded-md text-sm transition-colors ${
                 dayEntries.length ? "bg-primary/20 font-semibold hover:bg-primary/30" : "hover:bg-muted"
-              } ${isSelected ? "ring-2 ring-primary" : ""}`}
+              } ${isSelected ? "ring-2 ring-primary" : ""} ${isToday ? "border-2 border-primary" : ""}`}
             >
               {day}
             </button>

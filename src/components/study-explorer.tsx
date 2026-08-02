@@ -3,12 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { slugify } from "@/lib/books-meta";
-import { ReadingCalendar } from "@/components/reading-calendar";
-import type { Highlight, Note, Favorite, ReadingProgress } from "@/types/database";
+import type { Highlight, Note, Favorite } from "@/types/database";
 import type { WithBookName } from "@/lib/data/study";
 import type { PersonalTaggedVerse } from "@/lib/data/personal-topics";
 
-type Filter = "resaltados" | "subrayados" | "comentarios" | "notas" | "favoritos" | "etiquetas" | "historial";
+type Filter = "resaltados" | "subrayados" | "comentarios" | "notas" | "favoritos" | "etiquetas";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "resaltados", label: "Resaltados" },
@@ -17,7 +16,6 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "notas", label: "Notas generales" },
   { id: "favoritos", label: "Favoritos" },
   { id: "etiquetas", label: "Mis etiquetas" },
-  { id: "historial", label: "Historial de lectura" },
 ];
 
 function href(bookName: string, chapter: number, verse?: number | null) {
@@ -39,13 +37,11 @@ export function StudyExplorer({
   highlights,
   notes,
   favorites,
-  progress,
   personalTags,
 }: {
   highlights: (Highlight & WithBookName)[];
   notes: (Note & WithBookName)[];
   favorites: (Favorite & WithBookName)[];
-  progress: (ReadingProgress & WithBookName)[];
   personalTags: PersonalTaggedVerse[];
 }) {
   const [filter, setFilter] = useState<Filter>("resaltados");
@@ -163,32 +159,6 @@ export function StudyExplorer({
           </div>
         ))}
 
-      {filter === "historial" && (
-        <div className="flex flex-col gap-6 lg:flex-row">
-          <div className="lg:w-80">
-            <ReadingCalendar
-              entries={progress.map((p) => ({
-                book_name: p.book_name,
-                chapter_number: p.chapter_number,
-                last_read_at: p.last_read_at,
-                href: href(p.book_name, p.chapter_number),
-              }))}
-            />
-          </div>
-          <div className="flex-1">
-            <ItemList
-              empty="Aún no has marcado capítulos como leídos."
-              items={progress.map((p) => ({
-                key: p.id,
-                href: href(p.book_name, p.chapter_number),
-                title: `${p.book_name} ${p.chapter_number}`,
-                body: `Estado: ${p.status} · Veces leído: ${p.times_read}`,
-                date: p.last_read_at ?? p.first_read_at,
-              }))}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

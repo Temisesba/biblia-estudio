@@ -2,6 +2,16 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getPlanDetail } from "@/lib/data/reading-plans";
+
+export async function loadPlanDetail(planId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+  return getPlanDetail(user.id, planId);
+}
 
 export async function enrollInPlan(planId: string) {
   const supabase = await createClient();
@@ -91,5 +101,23 @@ export async function markPlanDayDone(planId: string, dayNumber: number) {
     .from("reading_plan_progress")
     .upsert({ user_id: user.id, plan_id: planId, day_number: dayNumber });
   if (error) throw new Error(error.message);
+
+  // Unificar con el progreso general: marcar tambien el capitulo como
+  // leido, para que aparezca en el calendario y en Progreso.
+  const { data: day } = await supabase
+    .from("reading_plan_days")
+    .select("book_id, chapter_number")
+    .eq("plan_id", planId)
+    .eq("day_number", dayNumber)
+    .maybeSingle();
+  if (day) {
+    await supabase.rpc("mark_chapter_read", {
+      p_book_id: day.book_id as number,
+      p_chapter_number: day.chapter_number as number,
+    });
+    revalidatePath("/mi-estudio");
+    revalidatePath("/progreso");
+  }
+
   revalidatePath(`/planes/${planId}`);
 }

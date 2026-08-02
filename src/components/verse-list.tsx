@@ -14,11 +14,12 @@ import type {
   VerseTopic,
   PersonalTopic,
   PersonalVerseTopic,
+  ReadingProgress,
 } from "@/types/database";
 import type { ChapterTopicsMap } from "@/lib/data/topics";
 import type { ChapterPersonalTopicsMap } from "@/lib/data/personal-topics";
 import { HIGHLIGHT_COLORS, DEFAULT_COLOR } from "@/lib/highlight-colors";
-import { createHighlight, deleteHighlight, toggleFavorite, createNote } from "@/lib/actions/study";
+import { createHighlight, deleteHighlight, toggleFavorite, createNote, markChapterRead } from "@/lib/actions/study";
 import {
   createPublicAnnotation,
   updatePublicAnnotation,
@@ -61,6 +62,7 @@ export function VerseList({
   searchQuery,
   onJumpToNotes,
   jumpToVerse,
+  progress,
 }: {
   verses: Verse[];
   bookId: number;
@@ -76,6 +78,7 @@ export function VerseList({
   allPersonalTopics: (PersonalTopic & { verseCount: number })[];
   isAdmin: boolean;
   searchQuery?: string;
+  progress?: ReadingProgress | null;
   onJumpToNotes?: () => void;
   jumpToVerse?: number | null;
 }) {
@@ -556,6 +559,17 @@ export function VerseList({
           );
         })}
       </div>
+
+      <label className="mt-4 flex items-center gap-3 rounded-md border border-border p-4 text-sm">
+        <input
+          type="checkbox"
+          checked={progress?.status === "terminado"}
+          disabled={pending}
+          onChange={() => startTransition(() => markChapterRead(bookOrder, chapterNumber))}
+          className="h-5 w-5 accent-[var(--primary)]"
+        />
+        <span className="font-medium">Marcar este capítulo como leído</span>
+      </label>
 
       {commentFor && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4" onClick={() => setCommentFor(null)}>

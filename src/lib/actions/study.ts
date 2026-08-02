@@ -168,6 +168,34 @@ export async function markChapterRead(bookOrder: number, chapterNumber: number) 
     p_chapter_number: chapterNumber,
   });
   if (error) throw new Error(error.message);
+
+  // Si este capitulo tambien es un dia de algun plan de lectura en el
+  // que el usuario esta inscrito, marcar ese dia como leido tambien.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const { data: enrollments } = await supabase
+      .from("reading_plan_enrollments")
+      .select("plan_id")
+      .eq("user_id", user.id);
+    const planIds = (enrollments ?? []).map((e) => e.plan_id as string);
+    if (planIds.length > 0) {
+      const { data: days } = await supabase
+        .from("reading_plan_days")
+        .select("plan_id, day_number")
+        .eq("book_id", bookRow.id)
+        .eq("chapter_number", chapterNumber)
+        .in("plan_id", planIds);
+      if (days && days.length > 0) {
+        await supabase
+          .from("reading_plan_progress")
+          .upsert(days.map((d) => ({ user_id: user.id, plan_id: d.plan_id as string, day_number: d.day_number as number })));
+        for (const d of days) revalidatePath(`/planes/${d.plan_id}`);
+      }
+    }
+  }
+
   revalidatePath(chapterPath(bookOrder, chapterNumber));
   revalidatePath("/mi-estudio");
   revalidatePath("/progreso");

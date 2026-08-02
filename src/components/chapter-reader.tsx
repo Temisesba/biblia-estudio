@@ -154,6 +154,7 @@ export function ChapterReader(props: {
           searchQuery={chapterQuery}
           onJumpToNotes={() => setTab("notas")}
           jumpToVerse={jumpTarget}
+          progress={props.progress}
         />
       )}
       {tab === "contexto" && (
