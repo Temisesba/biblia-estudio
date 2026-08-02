@@ -208,20 +208,19 @@ export function VerseList({
 
   return (
     <div className="relative" ref={containerRef} onMouseUp={handleMouseUp}>
-      {selection && (
-        <SelectionToolbar
-          isAdmin={isAdmin}
-          canPublicNote={selection.verseStart === selection.verseEnd && selection.charStart !== null}
-          onColor={(color) => applyHighlight("resaltado", color)}
-          onUnderline={() => applyHighlight("subrayado", DEFAULT_COLOR)}
-          onComment={openComment}
-          onPublicNote={openPublicNote}
-          onDismiss={() => {
-            window.getSelection()?.removeAllRanges();
-            setSelection(null);
-          }}
-        />
-      )}
+      <SelectionToolbar
+        disabled={!selection}
+        isAdmin={isAdmin}
+        canPublicNote={!!selection && selection.verseStart === selection.verseEnd && selection.charStart !== null}
+        onColor={(color) => applyHighlight("resaltado", color)}
+        onUnderline={() => applyHighlight("subrayado", DEFAULT_COLOR)}
+        onComment={openComment}
+        onPublicNote={openPublicNote}
+        onDismiss={() => {
+          window.getSelection()?.removeAllRanges();
+          setSelection(null);
+        }}
+      />
 
       <div className="verse-text flex flex-col gap-0.5">
         {verses.map((v) => {
@@ -510,6 +509,7 @@ function closestVerseEl(node: Node): HTMLElement | null {
 }
 
 function SelectionToolbar({
+  disabled,
   isAdmin,
   canPublicNote,
   onColor,
@@ -518,6 +518,7 @@ function SelectionToolbar({
   onPublicNote,
   onDismiss,
 }: {
+  disabled: boolean;
   isAdmin: boolean;
   canPublicNote: boolean;
   onColor: (color: string) => void;
@@ -528,26 +529,35 @@ function SelectionToolbar({
 }) {
   return (
     <div
-      className="fixed right-2 top-16 z-40 flex flex-wrap items-center gap-1 rounded-lg border border-border bg-background p-1.5 shadow-lg sm:right-4"
+      className={`fixed right-2 top-16 z-40 flex flex-wrap items-center gap-1 rounded-lg border border-border bg-background p-1.5 shadow-lg transition-all sm:right-4 ${
+        disabled ? "scale-90 opacity-40" : "scale-100 opacity-100"
+      }`}
     >
       {HIGHLIGHT_COLORS.map((c) => (
         <button
           key={c.value}
+          disabled={disabled}
           title={`Resaltar en ${c.label.toLowerCase()}`}
           onClick={() => onColor(c.value)}
-          className="h-6 w-6 rounded-full border border-black/10"
+          className="h-6 w-6 rounded-full border border-black/10 disabled:pointer-events-none"
           style={{ backgroundColor: c.value }}
         />
       ))}
       <div className="mx-1 h-6 w-px bg-border" />
       <button
         onClick={onUnderline}
+        disabled={disabled}
         title="Subrayar"
-        className="rounded px-2 py-1 text-sm font-semibold underline hover:bg-muted"
+        className="rounded px-2 py-1 text-sm font-semibold underline hover:bg-muted disabled:pointer-events-none"
       >
         U
       </button>
-      <button onClick={onComment} title="Agregar comentario" className="rounded px-2 py-1 text-sm hover:bg-muted">
+      <button
+        onClick={onComment}
+        disabled={disabled}
+        title="Agregar comentario"
+        className="rounded px-2 py-1 text-sm hover:bg-muted disabled:pointer-events-none"
+      >
         💬
       </button>
       {isAdmin && canPublicNote && (
@@ -559,9 +569,11 @@ function SelectionToolbar({
           📌
         </button>
       )}
-      <button onClick={onDismiss} title="Cerrar" className="rounded px-2 py-1 text-sm hover:bg-muted">
-        ✕
-      </button>
+      {!disabled && (
+        <button onClick={onDismiss} title="Cerrar" className="rounded px-2 py-1 text-sm hover:bg-muted">
+          ✕
+        </button>
+      )}
     </div>
   );
 }
