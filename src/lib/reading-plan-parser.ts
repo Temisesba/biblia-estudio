@@ -71,7 +71,7 @@ const BOOK_ALIASES: Record<string, number> = {
   ap: 66, apo: 66, apocalipsis: 66,
 };
 
-function normalizeToken(s: string): string {
+export function normalizeToken(s: string): string {
   return s
     .toLowerCase()
     .normalize("NFD")
@@ -104,7 +104,7 @@ const MONTH_HEADERS = new Set([
 // Intenta reconocer un nombre/abreviatura de libro al inicio de un texto.
 // Prueba primero con 4 palabras, luego 3, 2, 1 (para libros compuestos
 // como "1 Samuel" o "Cantar de los Cantares").
-function matchBookAtStart(words: string[]): { order: number; wordsUsed: number } | null {
+export function matchBookAtStart(words: string[]): { order: number; wordsUsed: number } | null {
   for (const wordCount of [4, 3, 2, 1]) {
     if (words.length < wordCount) continue;
     const candidate = normalizeToken(words.slice(0, wordCount).join(" "));
