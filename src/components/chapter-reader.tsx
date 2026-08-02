@@ -8,7 +8,15 @@ import { VerseList } from "@/components/verse-list";
 import { ContextPanel } from "@/components/context-panel";
 import { ChapterNotesPanel } from "@/components/chapter-notes-panel";
 import { ChapterProgressPanel } from "@/components/chapter-progress-panel";
-import type { Verse, Highlight, Note, Favorite, ReadingProgress, ChapterContext } from "@/types/database";
+import type {
+  Verse,
+  Highlight,
+  Note,
+  Favorite,
+  ReadingProgress,
+  ChapterContext,
+  PublicAnnotation,
+} from "@/types/database";
 
 type Tab = "texto" | "contexto" | "notas" | "progreso";
 
@@ -30,6 +38,7 @@ export function ChapterReader(props: {
   favorites: Favorite[];
   progress: ReadingProgress | null;
   readChapters: Record<number, number[]>;
+  publicAnnotations: PublicAnnotation[];
   context: ChapterContext | null;
   isAdmin: boolean;
   prevHref: string | null;
@@ -91,6 +100,8 @@ export function ChapterReader(props: {
           highlights={props.highlights}
           favorites={props.favorites}
           notes={props.notes}
+          publicAnnotations={props.publicAnnotations}
+          isAdmin={props.isAdmin}
           onJumpToNotes={() => setTab("notas")}
         />
       )}

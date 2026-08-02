@@ -70,6 +70,22 @@ create table public.contexts (
   unique (book_id, chapter_number)
 );
 
+-- ---------- Notas públicas (tipo "nota de traductor", visibles para todos, solo admin las crea) ----------
+create table public.public_annotations (
+  id uuid primary key default gen_random_uuid(),
+  book_id int not null references public.books(id) on delete cascade,
+  chapter_number int not null,
+  verse_number int not null,
+  char_start int not null,
+  char_end int not null,
+  quoted_text text not null,
+  note text not null,
+  created_by uuid references public.profiles(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index public_annotations_lookup_idx on public.public_annotations (book_id, chapter_number);
+
 -- ---------- Códigos de invitación (control de acceso tipo organización) ----------
 create table public.invite_codes (
   id uuid primary key default gen_random_uuid(),
@@ -183,6 +199,7 @@ alter table public.books enable row level security;
 alter table public.chapters enable row level security;
 alter table public.verses enable row level security;
 alter table public.contexts enable row level security;
+alter table public.public_annotations enable row level security;
 alter table public.invite_codes enable row level security;
 alter table public.highlights enable row level security;
 alter table public.notes enable row level security;
@@ -226,6 +243,9 @@ create policy "verses_write_admin" on public.verses for all using (public.is_adm
 
 create policy "contexts_read_all" on public.contexts for select using (auth.role() = 'authenticated');
 create policy "contexts_write_admin" on public.contexts for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "public_annotations_read_all" on public.public_annotations for select using (auth.role() = 'authenticated');
+create policy "public_annotations_write_admin" on public.public_annotations for all using (public.is_admin()) with check (public.is_admin());
 
 -- invite_codes: solo admin gestiona; validación de canje se hace vía función security definer
 create policy "invite_codes_admin_only" on public.invite_codes for all using (public.is_admin()) with check (public.is_admin());

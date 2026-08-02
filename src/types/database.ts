@@ -58,6 +58,20 @@ export interface ChapterContext {
   updated_at: string;
 }
 
+export interface PublicAnnotation {
+  id: string;
+  book_id: number;
+  chapter_number: number;
+  verse_number: number;
+  char_start: number;
+  char_end: number;
+  quoted_text: string;
+  note: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Highlight {
   id: string;
   user_id: string;

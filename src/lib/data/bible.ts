@@ -7,6 +7,7 @@ import type {
   Note,
   Favorite,
   ReadingProgress,
+  PublicAnnotation,
 } from "@/types/database";
 
 export async function resolveBook(slug: string) {
@@ -59,6 +60,19 @@ export async function getUserHighlights(
     .eq("book_id", bookId)
     .eq("chapter_number", chapterNumber);
   return (data as Highlight[]) ?? [];
+}
+
+export async function getPublicAnnotations(
+  bookId: number,
+  chapterNumber: number
+): Promise<PublicAnnotation[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("public_annotations")
+    .select("*")
+    .eq("book_id", bookId)
+    .eq("chapter_number", chapterNumber);
+  return (data as PublicAnnotation[]) ?? [];
 }
 
 export async function getUserNotes(

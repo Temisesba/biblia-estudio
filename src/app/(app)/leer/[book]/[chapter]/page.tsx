@@ -9,6 +9,7 @@ import {
   getUserFavorites,
   getUserChapterProgress,
   getReadChaptersMap,
+  getPublicAnnotations,
   neighborChapter,
 } from "@/lib/data/bible";
 import { getCurrentProfile } from "@/lib/data/profile";
@@ -29,15 +30,17 @@ export default async function ChapterPage({
     notFound();
   }
 
-  const [verses, context, highlights, notes, favorites, progress, readChapters] = await Promise.all([
-    getChapterVerses(book.id, chapterNumber),
-    getChapterContext(book.id, chapterNumber),
-    getUserHighlights(profile.id, book.id, chapterNumber),
-    getUserNotes(profile.id, book.id, chapterNumber),
-    getUserFavorites(profile.id, book.id, chapterNumber),
-    getUserChapterProgress(profile.id, book.id, chapterNumber),
-    getReadChaptersMap(profile.id),
-  ]);
+  const [verses, context, highlights, notes, favorites, progress, readChapters, publicAnnotations] =
+    await Promise.all([
+      getChapterVerses(book.id, chapterNumber),
+      getChapterContext(book.id, chapterNumber),
+      getUserHighlights(profile.id, book.id, chapterNumber),
+      getUserNotes(profile.id, book.id, chapterNumber),
+      getUserFavorites(profile.id, book.id, chapterNumber),
+      getUserChapterProgress(profile.id, book.id, chapterNumber),
+      getReadChaptersMap(profile.id),
+      getPublicAnnotations(book.id, chapterNumber),
+    ]);
 
   const prev = neighborChapter(book.order, chapterNumber, -1);
   const next = neighborChapter(book.order, chapterNumber, 1);
@@ -68,6 +71,7 @@ export default async function ChapterPage({
       favorites={favorites}
       progress={progress}
       readChapters={readChapters}
+      publicAnnotations={publicAnnotations}
       context={context}
       isAdmin={profile.role === "admin"}
       prevHref={prev ? `/leer/${slugify(prev.book.name)}/${prev.chapter}` : null}
