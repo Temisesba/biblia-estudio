@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NavLink } from "@/components/nav-link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { FontSizeControl } from "@/components/font-size-control";
 import { SearchBar } from "@/components/search-bar";
@@ -13,20 +14,10 @@ export function TopNav({ profile }: { profile: Profile }) {
           📖 Biblia Estudio
         </Link>
         <nav className="flex shrink-0 items-center gap-1 text-sm">
-          <Link href="/leer" className="rounded-md px-2.5 py-1.5 hover:bg-muted">
-            Leer
-          </Link>
-          <Link href="/mi-estudio" className="rounded-md px-2.5 py-1.5 hover:bg-muted">
-            Mi estudio
-          </Link>
-          <Link href="/progreso" className="rounded-md px-2.5 py-1.5 hover:bg-muted">
-            Progreso
-          </Link>
-          {profile.role === "admin" && (
-            <Link href="/admin" className="rounded-md px-2.5 py-1.5 hover:bg-muted">
-              Admin
-            </Link>
-          )}
+          <NavLink href="/leer">Leer</NavLink>
+          <NavLink href="/mi-estudio">Mi estudio</NavLink>
+          <NavLink href="/progreso">Progreso</NavLink>
+          {profile.role === "admin" && <NavLink href="/admin">Admin</NavLink>}
         </nav>
         <SearchBar />
         <div className="ml-auto flex items-center gap-2">
