@@ -347,6 +347,7 @@ export function VerseList({
     <div className="relative" ref={containerRef} onMouseUp={handleMouseUp}>
       <SelectionToolbar
         disabled={!selection}
+        pending={pending}
         isAdmin={isAdmin}
         canPublicNote={!!selection && selection.verseStart === selection.verseEnd && selection.charStart !== null}
         onColor={(color) => applyHighlight("resaltado", color)}
@@ -414,6 +415,7 @@ export function VerseList({
               </span>
               <button
                 type="button"
+                disabled={pending}
                 onClick={() =>
                   startTransition(() =>
                     toggleFavorite({
@@ -426,7 +428,7 @@ export function VerseList({
                     })
                   )
                 }
-                className={`ml-2 inline-flex align-middle opacity-0 transition-opacity group-hover:opacity-100 ${fav ? "opacity-100" : ""}`}
+                className={`ml-2 inline-flex align-middle opacity-0 transition-opacity group-hover:opacity-100 disabled:animate-pulse disabled:opacity-100 ${fav ? "opacity-100" : ""}`}
                 aria-label="Marcar como favorito"
               >
                 <Star size={14} fill={fav ? "currentColor" : "none"} className={fav ? "text-amber-500" : "text-foreground/40"} />
@@ -850,6 +852,7 @@ function closestVerseEl(node: Node): HTMLElement | null {
 
 function SelectionToolbar({
   disabled,
+  pending,
   isAdmin,
   canPublicNote,
   onColor,
@@ -861,6 +864,7 @@ function SelectionToolbar({
   onDismiss,
 }: {
   disabled: boolean;
+  pending: boolean;
   isAdmin: boolean;
   canPublicNote: boolean;
   onColor: (color: string) => void;
@@ -871,44 +875,46 @@ function SelectionToolbar({
   onPersonalTag: () => void;
   onDismiss: () => void;
 }) {
+  const actionsDisabled = disabled || pending;
   return (
     <div
       className={`fixed right-2 top-16 z-40 flex flex-wrap items-center gap-1 rounded-lg border border-border bg-background p-1.5 shadow-lg transition-all sm:right-4 ${
         disabled ? "scale-90 opacity-40" : "scale-100 opacity-100"
-      }`}
+      } ${pending ? "animate-pulse" : ""}`}
     >
       {HIGHLIGHT_COLORS.map((c) => (
         <button
           key={c.value}
-          disabled={disabled}
+          disabled={actionsDisabled}
           title={`Resaltar en ${c.label.toLowerCase()}`}
           onClick={() => onColor(c.value)}
-          className="h-6 w-6 rounded-full border border-black/10 disabled:pointer-events-none"
+          className="h-6 w-6 rounded-full border border-black/10 disabled:pointer-events-none disabled:cursor-wait"
           style={{ backgroundColor: c.value }}
         />
       ))}
       <div className="mx-1 h-6 w-px bg-border" />
       <button
         onClick={onUnderline}
-        disabled={disabled}
+        disabled={actionsDisabled}
         title="Subrayar"
-        className="rounded px-2 py-1 text-sm font-semibold underline hover:bg-muted disabled:pointer-events-none"
+        className="rounded px-2 py-1 text-sm font-semibold underline hover:bg-muted disabled:pointer-events-none disabled:cursor-wait"
       >
         U
       </button>
       <button
         onClick={onComment}
-        disabled={disabled}
+        disabled={actionsDisabled}
         title="Agregar comentario"
-        className="rounded px-2 py-1 text-sm hover:bg-muted disabled:pointer-events-none"
+        className="rounded px-2 py-1 text-sm hover:bg-muted disabled:pointer-events-none disabled:cursor-wait"
       >
         💬
       </button>
       {isAdmin && canPublicNote && (
         <button
           onClick={onPublicNote}
+          disabled={pending}
           title="Agregar nota pública (visible para todos)"
-          className="rounded px-2 py-1 text-sm hover:bg-muted"
+          className="rounded px-2 py-1 text-sm hover:bg-muted disabled:pointer-events-none disabled:cursor-wait"
         >
           📌
         </button>
@@ -916,18 +922,18 @@ function SelectionToolbar({
       {isAdmin && (
         <button
           onClick={onTag}
-          disabled={disabled}
+          disabled={actionsDisabled}
           title="Etiquetar por tema (ej. duelo, esperanza)"
-          className="rounded px-2 py-1 text-sm hover:bg-muted disabled:pointer-events-none"
+          className="rounded px-2 py-1 text-sm hover:bg-muted disabled:pointer-events-none disabled:cursor-wait"
         >
           🏷️
         </button>
       )}
       <button
         onClick={onPersonalTag}
-        disabled={disabled}
+        disabled={actionsDisabled}
         title="Mi etiqueta personal (solo tú la ves)"
-        className="rounded px-2 py-1 text-sm hover:bg-muted disabled:pointer-events-none"
+        className="rounded px-2 py-1 text-sm hover:bg-muted disabled:pointer-events-none disabled:cursor-wait"
       >
         🔖
       </button>
