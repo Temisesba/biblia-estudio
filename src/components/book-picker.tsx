@@ -18,10 +18,15 @@ export function BookPicker({
   const [activeBook, setActiveBook] = useState<BookMeta | null>(
     OLD_TESTAMENT.concat(NEW_TESTAMENT).find((b) => b.order === currentOrder) ?? null
   );
+  const [pendingChapter, setPendingChapter] = useState<number | null>(null);
 
   function goTo(book: BookMeta, chapter: number) {
-    setOpen(false);
+    setPendingChapter(chapter);
     router.push(`/leer/${slugify(book.name)}/${chapter}`);
+    setTimeout(() => {
+      setOpen(false);
+      setPendingChapter(null);
+    }, 350);
   }
 
   return (
@@ -63,15 +68,16 @@ export function BookPicker({
               <div className="grid grid-cols-6 gap-1">
                 {Array.from({ length: activeBook.chapters }, (_, i) => i + 1).map((c) => {
                   const isCurrent = activeBook.order === currentOrder && c === currentChapter;
+                  const isPending = c === pendingChapter;
                   const isRead = readChapters?.[activeBook.order]?.includes(c);
                   return (
                     <button
                       key={c}
                       onClick={() => goTo(activeBook, c)}
                       title={isRead ? "Leído" : undefined}
-                      className={`rounded py-1 text-sm hover:bg-primary hover:text-primary-foreground ${
-                        isCurrent
-                          ? "bg-primary text-primary-foreground"
+                      className={`rounded py-1 text-sm transition-colors hover:bg-primary hover:text-primary-foreground ${
+                        isCurrent || isPending
+                          ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-1 ring-offset-background"
                           : isRead
                             ? "bg-emerald-500/25 text-emerald-800 dark:text-emerald-300"
                             : "bg-muted"
