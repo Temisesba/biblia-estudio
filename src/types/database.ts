@@ -108,6 +108,17 @@ export interface PublicAnnotation {
   updated_at: string;
 }
 
+export interface SectionTitle {
+  id: string;
+  book_id: number;
+  chapter_number: number;
+  verse_number: number;
+  title: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Highlight {
   id: string;
   user_id: string;

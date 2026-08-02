@@ -18,6 +18,7 @@ import type {
   PublicAnnotation,
   Topic,
   PersonalTopic,
+  SectionTitle,
 } from "@/types/database";
 import type { ChapterTopicsMap } from "@/lib/data/topics";
 import type { ChapterPersonalTopicsMap } from "@/lib/data/personal-topics";
@@ -37,6 +38,7 @@ export function ChapterReader(props: {
   bookName: string;
   chapterNumber: number;
   verses: Verse[];
+  sectionTitles: SectionTitle[];
   highlights: Highlight[];
   notes: Note[];
   favorites: Favorite[];
@@ -139,6 +141,7 @@ export function ChapterReader(props: {
       {tab === "texto" && (
         <VerseList
           verses={props.verses}
+          sectionTitles={props.sectionTitles}
           bookId={props.bookId}
           bookOrder={props.bookOrder}
           chapterNumber={props.chapterNumber}

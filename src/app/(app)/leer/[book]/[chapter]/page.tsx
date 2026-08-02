@@ -4,6 +4,7 @@ import {
   resolveBook,
   getChapterVerses,
   getChapterContext,
+  getChapterSectionTitles,
   getUserHighlights,
   getUserNotes,
   getUserFavorites,
@@ -35,6 +36,7 @@ export default async function ChapterPage({
   const [
     verses,
     context,
+    sectionTitles,
     highlights,
     notes,
     favorites,
@@ -48,6 +50,7 @@ export default async function ChapterPage({
   ] = await Promise.all([
     getChapterVerses(book.id, chapterNumber),
     getChapterContext(book.id, chapterNumber),
+    getChapterSectionTitles(book.id, chapterNumber),
     getUserHighlights(profile.id, book.id, chapterNumber),
     getUserNotes(profile.id, book.id, chapterNumber),
     getUserFavorites(profile.id, book.id, chapterNumber),
@@ -84,6 +87,7 @@ export default async function ChapterPage({
       bookName={book.name}
       chapterNumber={chapterNumber}
       verses={verses}
+      sectionTitles={sectionTitles}
       highlights={highlights}
       notes={notes}
       favorites={favorites}

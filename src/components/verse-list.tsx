@@ -15,6 +15,7 @@ import type {
   PersonalTopic,
   PersonalVerseTopic,
   ReadingProgress,
+  SectionTitle,
 } from "@/types/database";
 import type { ChapterTopicsMap } from "@/lib/data/topics";
 import type { ChapterPersonalTopicsMap } from "@/lib/data/personal-topics";
@@ -31,6 +32,7 @@ import {
   tagVersesPersonal,
   untagVersePersonal,
 } from "@/lib/actions/personal-topics";
+import { upsertSectionTitle, deleteSectionTitle } from "@/lib/actions/section-titles";
 import { Star, MessageCircle, Tag, Bookmark } from "lucide-react";
 
 interface Selection {
@@ -50,6 +52,7 @@ export function VerseList({
   bookId,
   bookOrder,
   chapterNumber,
+  sectionTitles,
   highlights,
   favorites,
   notes,
@@ -68,6 +71,7 @@ export function VerseList({
   bookId: number;
   bookOrder: number;
   chapterNumber: number;
+  sectionTitles: SectionTitle[];
   highlights: Highlight[];
   favorites: Favorite[];
   notes: Note[];
@@ -110,6 +114,30 @@ export function VerseList({
   const [pending, startTransition] = useTransition();
   const [revealedFavoriteVerse, setRevealedFavoriteVerse] = useState<number | null>(null);
   const [flashVerse, setFlashVerse] = useState<number | null>(null);
+  const [editingTitleVerse, setEditingTitleVerse] = useState<number | null>(null);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [editTitlesMode, setEditTitlesMode] = useState(false);
+  const sectionTitleByVerse = new Map(sectionTitles.map((s) => [s.verse_number, s]));
+
+  function openTitleEditor(verseNumber: number) {
+    setEditingTitleVerse(verseNumber);
+    setTitleDraft(sectionTitleByVerse.get(verseNumber)?.title ?? "");
+  }
+
+  function saveTitleEditor() {
+    if (editingTitleVerse === null) return;
+    const trimmed = titleDraft.trim();
+    const verseNumber = editingTitleVerse;
+    startTransition(async () => {
+      if (trimmed) {
+        await upsertSectionTitle({ bookId, bookOrder, chapterNumber, verseNumber, title: trimmed });
+      } else {
+        const existing = sectionTitleByVerse.get(verseNumber);
+        if (existing) await deleteSectionTitle(existing.id, bookOrder, chapterNumber);
+      }
+      setEditingTitleVerse(null);
+    });
+  }
   const searchParams = useSearchParams();
 
   function scrollAndFlash(target: number) {
@@ -441,6 +469,18 @@ export function VerseList({
           toolbarSlot
         )}
 
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={() => setEditTitlesMode((m) => !m)}
+          className={`mb-2 self-start rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted ${
+            editTitlesMode ? "bg-muted font-medium" : ""
+          }`}
+        >
+          ✏️ {editTitlesMode ? "Terminar de editar títulos" : "Editar títulos de sección"}
+        </button>
+      )}
+
       <div className="verse-text flex flex-col gap-0.5">
         {verses.map((v) => {
           const vHighlights = highlightsFor(v.verse_number);
@@ -472,11 +512,50 @@ export function VerseList({
 
           const query = searchQuery?.trim().toLowerCase();
           const matchesSearch = !query || v.text.toLowerCase().includes(query);
+          const sectionTitle = sectionTitleByVerse.get(v.verse_number);
 
           return (
-            <p
-              key={v.id}
-              data-verse={v.verse_number}
+            <div key={v.id} className="contents">
+              {(sectionTitle || (isAdmin && editTitlesMode)) &&
+                (editingTitleVerse === v.verse_number ? (
+                  <div className="mt-4 flex items-center gap-2">
+                    <input
+                      autoFocus
+                      value={titleDraft}
+                      onChange={(e) => setTitleDraft(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && saveTitleEditor()}
+                      placeholder="Título de sección"
+                      className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm font-semibold outline-none focus:border-primary"
+                    />
+                    <button onClick={saveTitleEditor} className="rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground">
+                      Guardar
+                    </button>
+                    <button onClick={() => setEditingTitleVerse(null)} className="rounded-md px-2 py-1 text-xs hover:bg-muted">
+                      Cancelar
+                    </button>
+                  </div>
+                ) : sectionTitle ? (
+                  <div className="mt-4 flex items-center gap-2 group/title">
+                    <h3 className="text-lg font-semibold">{sectionTitle.title}</h3>
+                    {isAdmin && editTitlesMode && (
+                      <button
+                        onClick={() => openTitleEditor(v.verse_number)}
+                        className="text-xs text-foreground/40 opacity-0 hover:text-foreground group-hover/title:opacity-100"
+                      >
+                        editar
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => openTitleEditor(v.verse_number)}
+                    className="mt-4 self-start text-xs text-foreground/40 hover:text-primary"
+                  >
+                    + Añadir título aquí
+                  </button>
+                ))}
+              <p
+                data-verse={v.verse_number}
               className={`group relative rounded px-2 py-0.5 hover:bg-muted/60 transition-all duration-700 ${
                 query ? (matchesSearch ? "" : "opacity-30") : ""
               } ${flashVerse === v.verse_number ? "bg-primary/25" : ""}`}
@@ -555,7 +634,8 @@ export function VerseList({
                   <Bookmark size={14} fill="currentColor" className="text-indigo-600/20 dark:text-indigo-400/20" />
                 </button>
               )}
-            </p>
+              </p>
+            </div>
           );
         })}
       </div>

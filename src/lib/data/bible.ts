@@ -10,6 +10,7 @@ import type {
   Favorite,
   ReadingProgress,
   PublicAnnotation,
+  SectionTitle,
 } from "@/types/database";
 
 export async function resolveBook(slug: string) {
@@ -67,6 +68,28 @@ export async function getChapterContext(
   chapterNumber: number
 ): Promise<ChapterContext | null> {
   return getChapterContextCached(bookId, chapterNumber);
+}
+
+const getChapterSectionTitlesCached = unstable_cache(
+  async (bookId: number, chapterNumber: number): Promise<SectionTitle[]> => {
+    const supabase = createPublicClient();
+    const { data } = await supabase
+      .from("section_titles")
+      .select("*")
+      .eq("book_id", bookId)
+      .eq("chapter_number", chapterNumber)
+      .order("verse_number");
+    return (data as SectionTitle[]) ?? [];
+  },
+  ["chapter-section-titles"],
+  { revalidate: 300 }
+);
+
+export async function getChapterSectionTitles(
+  bookId: number,
+  chapterNumber: number
+): Promise<SectionTitle[]> {
+  return getChapterSectionTitlesCached(bookId, chapterNumber);
 }
 
 export async function getUserHighlights(
