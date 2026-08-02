@@ -1,0 +1,17 @@
+{
+  "name": "Biblia Estudio",
+  "short_name": "Biblia Estudio",
+  "description": "Lee y estudia la Biblia en comunidad: notas, resaltados, planes de lectura y progreso.",
+  "start_url": "/leer",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5efe6",
+  "theme_color": "#8a5a2b",
+  "orientation": "portrait-primary",
+  "lang": "es",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
