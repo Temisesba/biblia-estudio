@@ -883,22 +883,55 @@ function SelectionToolbar({
   onDismiss: () => void;
 }) {
   const actionsDisabled = disabled || pending;
+  const [activeColor, setActiveColor] = useState<string>(DEFAULT_COLOR);
+  const [colorMenuOpen, setColorMenuOpen] = useState(false);
+  const activeColorMeta = HIGHLIGHT_COLORS.find((c) => c.value === activeColor) ?? HIGHLIGHT_COLORS[0];
+
+  function pickColor(color: string) {
+    setActiveColor(color);
+    setColorMenuOpen(false);
+    onColor(color);
+  }
+
   return (
     <div
       className={`flex items-center gap-1 rounded-md border border-border bg-muted/60 p-1 pr-2 mr-1 transition-all ${
         disabled ? "opacity-40" : "opacity-100"
       } ${pending ? "animate-pulse" : ""}`}
     >
-      {HIGHLIGHT_COLORS.map((c) => (
+      <div className="relative flex items-center">
         <button
-          key={c.value}
           disabled={actionsDisabled}
-          title={`Resaltar en ${c.label.toLowerCase()}`}
-          onClick={() => onColor(c.value)}
+          title={`Resaltar en ${activeColorMeta.label.toLowerCase()}`}
+          onClick={() => pickColor(activeColor)}
           className="h-6 w-6 rounded-full border border-black/10 disabled:pointer-events-none disabled:cursor-wait"
-          style={{ backgroundColor: c.value }}
+          style={{ backgroundColor: activeColor }}
         />
-      ))}
+        <button
+          disabled={actionsDisabled}
+          title="Elegir otro color"
+          onClick={() => setColorMenuOpen((o) => !o)}
+          className="px-0.5 text-[10px] text-foreground/60 hover:text-foreground disabled:pointer-events-none"
+        >
+          ▾
+        </button>
+        {colorMenuOpen && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setColorMenuOpen(false)} />
+            <div className="absolute right-0 top-full z-40 mt-2 flex gap-1 rounded-md border border-border bg-background p-1.5 shadow-lg">
+              {HIGHLIGHT_COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  title={`Resaltar en ${c.label.toLowerCase()}`}
+                  onClick={() => pickColor(c.value)}
+                  className="h-6 w-6 rounded-full border border-black/10"
+                  style={{ backgroundColor: c.value }}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
       <div className="mx-1 h-6 w-px bg-border" />
       <button
         onClick={onUnderline}
