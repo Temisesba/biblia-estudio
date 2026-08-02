@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import type {
@@ -99,11 +99,17 @@ export function VerseList({
   } | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function handleMouseUp() {
+  function updateSelectionFromDOM() {
     const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+      setSelection(null);
+      return;
+    }
     const text = sel.toString().trim();
-    if (!text) return;
+    if (!text) {
+      setSelection(null);
+      return;
+    }
 
     const range = sel.getRangeAt(0);
     const container = containerRef.current;
@@ -138,6 +144,22 @@ export function VerseList({
       text,
     });
   }
+
+  // En móvil, seleccionar texto no siempre dispara "mouseup" (se arma con
+  // toques + manijas de arrastre), pero "selectionchange" si se dispara
+  // siempre que cambia la seleccion real del navegador.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    function onSelectionChange() {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(updateSelectionFromDOM, 150);
+    }
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => {
+      document.removeEventListener("selectionchange", onSelectionChange);
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
 
   function applyHighlight(type: "resaltado" | "subrayado", color: string) {
     if (!selection) return;
@@ -347,7 +369,7 @@ export function VerseList({
   const toolbarSlot = typeof document !== "undefined" ? document.getElementById("selection-toolbar-slot") : null;
 
   return (
-    <div className="relative" ref={containerRef} onMouseUp={handleMouseUp}>
+    <div className="relative" ref={containerRef} onMouseUp={updateSelectionFromDOM}>
       {toolbarSlot &&
         createPortal(
           <SelectionToolbar
