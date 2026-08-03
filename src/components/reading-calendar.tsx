@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface ReadingEntry {
@@ -98,9 +99,9 @@ export function ReadingCalendar({ entries }: { entries: ReadingEntry[] }) {
           <ul className="flex flex-col gap-1">
             {(byDay.get(selectedDay) ?? []).map((e, idx) => (
               <li key={idx}>
-                <a href={e.href} className="text-sm text-primary hover:underline">
+                <Link href={e.href} className="text-sm text-primary hover:underline">
                   {e.book_name} {e.chapter_number}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>

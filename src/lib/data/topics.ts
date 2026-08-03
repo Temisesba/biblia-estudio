@@ -58,36 +58,46 @@ export async function getVersesByTopicSlug(
   slug: string
 ): Promise<{ topic: Topic | null; verses: TaggedVerse[] }> {
   const supabase = await createClient();
-  const { data: topic } = await supabase.from("topics").select("*").eq("slug", slug).maybeSingle();
-  if (!topic) return { topic: null, verses: [] };
 
-  const [{ data: links }, { data: bookRows }] = await Promise.all([
-    supabase.from("verse_topics").select("*").eq("topic_id", topic.id),
+  // Se trae el tema y sus versiculos ligados en una sola ida y vuelta
+  // (join embebido de PostgREST) en vez de dos consultas seguidas.
+  const [{ data: linkRows }, { data: bookRows }] = await Promise.all([
+    supabase.from("verse_topics").select("*, topics!inner(*)").eq("topics.slug", slug),
     supabase.from("books").select("id, order"),
   ]);
 
+  if (!linkRows || linkRows.length === 0) {
+    const { data: topicOnly } = await supabase.from("topics").select("*").eq("slug", slug).maybeSingle();
+    return { topic: (topicOnly as Topic) ?? null, verses: [] };
+  }
+
+  const topic = (linkRows[0] as unknown as { topics: Topic }).topics;
+  const links = linkRows as unknown as VerseTopic[];
   const idToOrder = new Map((bookRows ?? []).map((r) => [r.id as number, r.order as number]));
 
-  const verses = await Promise.all(
-    (links ?? []).map(async (link) => {
-      const order = idToOrder.get(link.book_id as number);
-      const book = BOOKS.find((b) => b.order === order);
-      const { data: verseRow } = await supabase
-        .from("verses")
-        .select("text")
-        .eq("book_id", link.book_id as number)
-        .eq("chapter_number", link.chapter_number as number)
-        .eq("verse_number", link.verse_number as number)
-        .maybeSingle();
-      return {
-        bookName: book?.name ?? "—",
-        chapterNumber: link.chapter_number as number,
-        verseNumber: link.verse_number as number,
-        text: verseRow?.text ?? null,
-        href: book ? `/leer/${slugify(book.name)}/${link.chapter_number}?v=${link.verse_number}` : "#",
-      };
-    })
-  );
+  // Una sola consulta con todos los versiculos en vez de una por versiculo
+  // (antes eran N ida-y-vueltas a Supabase, aqui es solo una).
+  const textByKey = new Map<string, string>();
+  const filter = links
+    .map((l) => `and(book_id.eq.${l.book_id},chapter_number.eq.${l.chapter_number},verse_number.eq.${l.verse_number})`)
+    .join(",");
+  const { data: verseRows } = await supabase.from("verses").select("book_id, chapter_number, verse_number, text").or(filter);
+  for (const row of verseRows ?? []) {
+    textByKey.set(`${row.book_id}:${row.chapter_number}:${row.verse_number}`, row.text as string);
+  }
+
+  const verses: TaggedVerse[] = (links ?? []).map((link) => {
+    const order = idToOrder.get(link.book_id as number);
+    const book = BOOKS.find((b) => b.order === order);
+    const key = `${link.book_id}:${link.chapter_number}:${link.verse_number}`;
+    return {
+      bookName: book?.name ?? "—",
+      chapterNumber: link.chapter_number as number,
+      verseNumber: link.verse_number as number,
+      text: textByKey.get(key) ?? null,
+      href: book ? `/leer/${slugify(book.name)}/${link.chapter_number}?v=${link.verse_number}` : "#",
+    };
+  });
 
   return { topic: topic as Topic, verses };
 }

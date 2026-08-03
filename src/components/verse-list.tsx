@@ -97,6 +97,7 @@ export function VerseList({
   const [publicNoteFor, setPublicNoteFor] = useState<Selection | null>(null);
   const [publicNoteText, setPublicNoteText] = useState("");
   const [viewingAnnotation, setViewingAnnotation] = useState<PublicAnnotation | null>(null);
+  const [viewingHighlightId, setViewingHighlightId] = useState<string | null>(null);
   const [editingAnnotation, setEditingAnnotation] = useState(false);
   const [annotationEditText, setAnnotationEditText] = useState("");
   const [tagFor, setTagFor] = useState<Selection | null>(null);
@@ -112,7 +113,6 @@ export function VerseList({
     topics: (PersonalVerseTopic & { topicName: string; topicSlug: string })[];
   } | null>(null);
   const [pending, startTransition] = useTransition();
-  const [revealedFavoriteVerse, setRevealedFavoriteVerse] = useState<number | null>(null);
   const [flashVerse, setFlashVerse] = useState<number | null>(null);
   const [editingTitleVerse, setEditingTitleVerse] = useState<number | null>(null);
   const [titleDraft, setTitleDraft] = useState("");
@@ -561,21 +561,17 @@ export function VerseList({
               } ${flashVerse === v.verse_number ? "bg-primary/25" : ""}`}
               style={
                 wholeVerseHighlight
-                  ? { backgroundColor: wholeVerseHighlight.color, textDecoration: wholeVerseHighlight.type === "subrayado" ? "underline" : undefined }
+                  ? wholeVerseHighlight.type === "subrayado"
+                    ? { textDecorationLine: "underline", textDecorationColor: wholeVerseHighlight.color, textDecorationThickness: "2px" }
+                    : { backgroundColor: wholeVerseHighlight.color }
                   : query && matchesSearch
                     ? { backgroundColor: "color-mix(in srgb, var(--primary) 15%, transparent)" }
                     : undefined
               }
             >
-              <sup
-                role="button"
-                onClick={() => setRevealedFavoriteVerse((cur) => (cur === v.verse_number ? null : v.verse_number))}
-                className="mr-1 cursor-pointer select-none text-xs font-semibold text-primary"
-              >
-                {v.verse_number}
-              </sup>
+              <sup className="mr-1 select-none text-xs font-semibold text-primary">{v.verse_number}</sup>
               <span data-verse-text>
-                {marks.length ? renderSegments(v.text, marks, setViewingAnnotation) : v.text}
+                {marks.length ? renderSegments(v.text, marks, setViewingAnnotation, setViewingHighlightId) : v.text}
               </span>
               <button
                 type="button"
@@ -593,7 +589,7 @@ export function VerseList({
                   )
                 }
                 className={`ml-2 inline-flex align-middle transition-opacity disabled:animate-pulse disabled:opacity-100 ${
-                  fav || revealedFavoriteVerse === v.verse_number ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                  fav ? "opacity-100" : "opacity-40 hover:opacity-100"
                 }`}
                 aria-label="Marcar como favorito"
               >
@@ -798,6 +794,38 @@ export function VerseList({
         </div>
       )}
 
+      {viewingHighlightId && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => setViewingHighlightId(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-lg border border-border bg-background p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-3 text-sm text-foreground/70">¿Quitar este resaltado o subrayado?</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setViewingHighlightId(null)} className="rounded-md px-3 py-1.5 text-sm hover:bg-muted">
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const id = viewingHighlightId;
+                  startTransition(async () => {
+                    await deleteHighlight(id, bookOrder, chapterNumber);
+                    setViewingHighlightId(null);
+                  });
+                }}
+                disabled={pending}
+                className="rounded-md bg-red-500 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              >
+                Quitar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {tagFor && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4" onClick={() => setTagFor(null)}>
           <div
@@ -979,7 +1007,8 @@ export function VerseList({
 function renderSegments(
   fullText: string,
   marks: Mark[],
-  onAnnotationClick: (a: PublicAnnotation) => void
+  onAnnotationClick: (a: PublicAnnotation) => void,
+  onHighlightClick: (id: string) => void
 ) {
   const sorted = [...marks].sort((a, b) => a.start - b.start);
   const pieces: React.ReactNode[] = [];
@@ -992,13 +1021,19 @@ function renderSegments(
     if (!content) return;
     if (m.kind === "highlight") {
       pieces.push(
-        <mark
+        <button
+          type="button"
           key={m.id ?? i}
-          style={{ backgroundColor: m.color, textDecoration: m.underline ? "underline" : undefined }}
-          className="rounded-sm px-0.5"
+          onClick={() => onHighlightClick(m.id)}
+          style={
+            m.underline
+              ? { textDecorationLine: "underline", textDecorationColor: m.color, textDecorationThickness: "2px" }
+              : { backgroundColor: m.color }
+          }
+          className="rounded-sm px-0.5 font-normal text-inherit"
         >
           {content}
-        </mark>
+        </button>
       );
     } else {
       pieces.push(
