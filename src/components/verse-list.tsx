@@ -1043,33 +1043,45 @@ function renderSegments(
     if (!content) return;
     if (m.kind === "highlight") {
       pieces.push(
-        <button
-          type="button"
+        <span
           key={m.id ?? i}
+          role="button"
+          tabIndex={0}
           onClick={() => onHighlightClick(m.id)}
-          style={{
-            font: "inherit",
-            ...(m.underline
-              ? { textDecorationLine: "underline", textDecorationColor: m.color, textDecorationThickness: "2px" }
-              : { backgroundColor: m.color }),
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onHighlightClick(m.id);
+            }
           }}
-          className="inline cursor-pointer appearance-none border-0 bg-transparent p-0 align-baseline text-inherit"
+          style={
+            m.underline
+              ? { textDecorationLine: "underline", textDecorationColor: m.color, textDecorationThickness: "2px" }
+              : { backgroundColor: m.color }
+          }
+          className="cursor-pointer"
         >
           {content}
-        </button>
+        </span>
       );
     } else {
       pieces.push(
-        <button
-          type="button"
+        <span
           key={m.id ?? i}
+          role="button"
+          tabIndex={0}
           onClick={() => onAnnotationClick(m.annotation)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onAnnotationClick(m.annotation);
+            }
+          }}
           title={m.annotation.note}
-          style={{ font: "inherit" }}
-          className="inline cursor-help appearance-none border-0 border-b-2 border-dotted border-sky-500 bg-transparent p-0 align-baseline text-inherit"
+          className="cursor-help border-b-2 border-dotted border-sky-500"
         >
           {content}
-        </button>
+        </span>
       );
     }
     cursor = end;

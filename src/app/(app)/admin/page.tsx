@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { AppUpdateButton } from "@/components/app-update-button";
 
 export default async function AdminHomePage() {
   const supabase = await createClient();
@@ -16,6 +17,7 @@ export default async function AdminHomePage() {
         <Card label="Versículos cargados" value={verses ?? 0} />
         <Card label="Capítulos con contexto" value={contexts ?? 0} />
       </div>
+      <AppUpdateButton />
     </div>
   );
 }

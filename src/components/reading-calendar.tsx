@@ -7,7 +7,10 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 interface ReadingEntry {
   book_name: string;
   chapter_number: number;
-  last_read_at: string | null;
+  // La fecha en la que se ancla el capitulo en el calendario. Se usa
+  // first_read_at (no last_read_at) para que releer un capitulo despues
+  // no lo "mueva" al dia de hoy y se pierda cuando se leyo por primera vez.
+  read_at: string | null;
   href: string;
 }
 
@@ -31,8 +34,8 @@ export function ReadingCalendar({ entries }: { entries: ReadingEntry[] }) {
   const byDay = useMemo(() => {
     const map = new Map<string, ReadingEntry[]>();
     for (const e of entries) {
-      if (!e.last_read_at) continue;
-      const key = localDateKey(new Date(e.last_read_at));
+      if (!e.read_at) continue;
+      const key = localDateKey(new Date(e.read_at));
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(e);
     }

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { getAllTopics } from "@/lib/data/topics";
+import { TopicsAccordion } from "@/components/topics-accordion";
 
 export default async function TemasPage() {
   const topics = await getAllTopics();
@@ -17,17 +17,7 @@ export default async function TemasPage() {
           Aún no hay temas creados. Un administrador puede etiquetar versículos desde el lector.
         </p>
       ) : (
-        <div className="flex flex-wrap gap-2">
-          {topics.map((t) => (
-            <Link
-              key={t.id}
-              href={`/temas/${t.slug}`}
-              className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-muted"
-            >
-              #{t.name} <span className="text-foreground/40">({t.verseCount})</span>
-            </Link>
-          ))}
-        </div>
+        <TopicsAccordion topics={topics} />
       )}
     </div>
   );

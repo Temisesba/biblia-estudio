@@ -3,10 +3,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { BOOKS, slugify as slugifyBookName } from "@/lib/books-meta";
+import { getVersesByTopicSlug } from "@/lib/data/topics";
 
 function chapterPath(bookOrder: number, chapterNumber: number) {
   const book = BOOKS.find((b) => b.order === bookOrder);
   return `/leer/${book ? slugifyBookName(book.name) : bookOrder}/${chapterNumber}`;
+}
+
+export async function loadTopicVerses(slug: string) {
+  return getVersesByTopicSlug(slug);
 }
 
 function slugifyTopic(name: string): string {

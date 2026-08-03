@@ -28,7 +28,7 @@ export default async function ProgresoPage() {
           entries={progress.map((p) => ({
             book_name: p.book_name,
             chapter_number: p.chapter_number,
-            last_read_at: p.last_read_at,
+            read_at: p.first_read_at,
             href: `/leer/${slugify(p.book_name)}/${p.chapter_number}`,
           }))}
         />
