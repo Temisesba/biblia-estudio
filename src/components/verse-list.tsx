@@ -91,6 +91,12 @@ export function VerseList({
     highlights,
     (state, newHighlight) => [...state, newHighlight]
   );
+  const [optimisticFavorites, updateOptimisticFavorites] = useOptimistic<
+    Favorite[],
+    { type: "add"; favorite: Favorite } | { type: "remove"; id: string }
+  >(favorites, (state, action) =>
+    action.type === "add" ? [...state, action.favorite] : state.filter((f) => f.id !== action.id)
+  );
   const [selection, setSelection] = useState<Selection | null>(null);
   const [commentFor, setCommentFor] = useState<Selection | null>(null);
   const [commentText, setCommentText] = useState("");
@@ -425,7 +431,7 @@ export function VerseList({
   }
 
   function favoriteFor(verseNumber: number) {
-    return favorites.find(
+    return optimisticFavorites.find(
       (f) =>
         (f.verse_start === null && f.verse_end === null) ||
         (f.verse_start !== null && f.verse_end !== null && verseNumber >= f.verse_start && verseNumber <= f.verse_end && f.verse_start === f.verse_end)
@@ -575,20 +581,36 @@ export function VerseList({
               </span>
               <button
                 type="button"
-                disabled={pending}
-                onClick={() =>
-                  startTransition(() =>
-                    toggleFavorite({
+                onClick={() => {
+                  const existingId = fav?.id ?? null;
+                  startTransition(async () => {
+                    if (existingId) {
+                      updateOptimisticFavorites({ type: "remove", id: existingId });
+                    } else {
+                      updateOptimisticFavorites({
+                        type: "add",
+                        favorite: {
+                          id: `optimistic-${Date.now()}`,
+                          user_id: "",
+                          book_id: bookId,
+                          chapter_number: chapterNumber,
+                          verse_start: v.verse_number,
+                          verse_end: v.verse_number,
+                          created_at: new Date().toISOString(),
+                        },
+                      });
+                    }
+                    await toggleFavorite({
                       bookId,
                       bookOrder,
                       chapterNumber,
                       verseStart: v.verse_number,
                       verseEnd: v.verse_number,
-                      existingId: fav?.id ?? null,
-                    })
-                  )
-                }
-                className={`ml-2 inline-flex align-middle transition-opacity disabled:animate-pulse disabled:opacity-100 ${
+                      existingId,
+                    });
+                  });
+                }}
+                className={`ml-2 inline-flex align-middle transition-opacity ${
                   fav ? "opacity-100" : "opacity-40 hover:opacity-100"
                 }`}
                 aria-label="Marcar como favorito"
