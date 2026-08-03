@@ -8,3 +8,7 @@ export const HIGHLIGHT_COLORS = [
 ] as const;
 
 export const DEFAULT_COLOR = HIGHLIGHT_COLORS[0].value;
+
+// Color de la linea cuando se subraya (distinto a los colores de fondo de
+// arriba, que son pasteles pensados para resaltar, no para una linea).
+export const UNDERLINE_COLOR = "#F97316";

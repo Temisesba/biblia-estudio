@@ -19,7 +19,7 @@ import type {
 } from "@/types/database";
 import type { ChapterTopicsMap } from "@/lib/data/topics";
 import type { ChapterPersonalTopicsMap } from "@/lib/data/personal-topics";
-import { HIGHLIGHT_COLORS, DEFAULT_COLOR } from "@/lib/highlight-colors";
+import { HIGHLIGHT_COLORS, DEFAULT_COLOR, UNDERLINE_COLOR } from "@/lib/highlight-colors";
 import { createHighlight, deleteHighlight, toggleFavorite, createNote, markChapterRead } from "@/lib/actions/study";
 import {
   createPublicAnnotation,
@@ -456,7 +456,7 @@ export function VerseList({
             isAdmin={isAdmin}
             canPublicNote={!!selection && selection.verseStart === selection.verseEnd && selection.charStart !== null}
             onColor={(color) => applyHighlight("resaltado", color)}
-            onUnderline={() => applyHighlight("subrayado", DEFAULT_COLOR)}
+            onUnderline={() => applyHighlight("subrayado", UNDERLINE_COLOR)}
             onComment={openComment}
             onPublicNote={openPublicNote}
             onTag={openTag}
@@ -1025,12 +1025,13 @@ function renderSegments(
           type="button"
           key={m.id ?? i}
           onClick={() => onHighlightClick(m.id)}
-          style={
-            m.underline
+          style={{
+            font: "inherit",
+            ...(m.underline
               ? { textDecorationLine: "underline", textDecorationColor: m.color, textDecorationThickness: "2px" }
-              : { backgroundColor: m.color }
-          }
-          className="rounded-sm px-0.5 font-normal text-inherit"
+              : { backgroundColor: m.color }),
+          }}
+          className="inline cursor-pointer appearance-none border-0 bg-transparent p-0 align-baseline text-inherit"
         >
           {content}
         </button>
@@ -1042,7 +1043,8 @@ function renderSegments(
           key={m.id ?? i}
           onClick={() => onAnnotationClick(m.annotation)}
           title={m.annotation.note}
-          className="cursor-help border-b-2 border-dotted border-sky-500 font-normal text-inherit"
+          style={{ font: "inherit" }}
+          className="inline cursor-help appearance-none border-0 border-b-2 border-dotted border-sky-500 bg-transparent p-0 align-baseline text-inherit"
         >
           {content}
         </button>
