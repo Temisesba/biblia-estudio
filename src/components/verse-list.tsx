@@ -35,6 +35,15 @@ import {
 import { upsertSectionTitle, deleteSectionTitle } from "@/lib/actions/section-titles";
 import { Star, MessageCircle, Tag, Bookmark } from "lucide-react";
 
+export function parseTagsInput(input: string): string[] {
+  const seen = new Set<string>();
+  for (const raw of input.split(/[,\s]+/)) {
+    const tag = raw.trim().replace(/^#/, "").toLowerCase();
+    if (tag) seen.add(tag);
+  }
+  return Array.from(seen);
+}
+
 interface Selection {
   verseStart: number;
   verseEnd: number;
@@ -87,9 +96,11 @@ export function VerseList({
   jumpToVerse?: number | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [optimisticHighlights, addOptimisticHighlight] = useOptimistic<Highlight[], Highlight>(
-    highlights,
-    (state, newHighlight) => [...state, newHighlight]
+  const [optimisticHighlights, updateOptimisticHighlights] = useOptimistic<
+    Highlight[],
+    { type: "add"; highlight: Highlight } | { type: "remove"; id: string }
+  >(highlights, (state, action) =>
+    action.type === "add" ? [...state, action.highlight] : state.filter((h) => h.id !== action.id)
   );
   const [optimisticFavorites, updateOptimisticFavorites] = useOptimistic<
     Favorite[],
@@ -100,6 +111,7 @@ export function VerseList({
   const [selection, setSelection] = useState<Selection | null>(null);
   const [commentFor, setCommentFor] = useState<Selection | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [commentTags, setCommentTags] = useState("");
   const [publicNoteFor, setPublicNoteFor] = useState<Selection | null>(null);
   const [publicNoteText, setPublicNoteText] = useState("");
   const [viewingAnnotation, setViewingAnnotation] = useState<PublicAnnotation | null>(null);
@@ -249,7 +261,7 @@ export function VerseList({
     window.getSelection()?.removeAllRanges();
     setSelection(null);
     startTransition(async () => {
-      addOptimisticHighlight(optimisticEntry);
+      updateOptimisticHighlights({ type: "add", highlight: optimisticEntry });
       await createHighlight({
         bookId,
         bookOrder,
@@ -282,10 +294,12 @@ export function VerseList({
         highlightId: null,
         quotedText: commentFor.text,
         content: commentText.trim(),
+        tags: parseTagsInput(commentTags),
       });
       window.getSelection()?.removeAllRanges();
       setCommentFor(null);
       setCommentText("");
+      setCommentTags("");
     });
   }
 
@@ -670,7 +684,13 @@ export function VerseList({
       </label>
 
       {commentFor && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4" onClick={() => setCommentFor(null)}>
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => {
+            setCommentFor(null);
+            setCommentTags("");
+          }}
+        >
           <div
             className="w-full max-w-md rounded-lg border border-border bg-background p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
@@ -686,9 +706,18 @@ export function VerseList({
               className="w-full rounded-md border border-border bg-background p-2 text-sm outline-none focus:border-primary"
               placeholder="Escribe tu comentario..."
             />
+            <input
+              value={commentTags}
+              onChange={(e) => setCommentTags(e.target.value)}
+              placeholder="Etiquetas (opcional), ej. oracion familia"
+              className="mt-2 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+            />
             <div className="mt-3 flex justify-end gap-2">
               <button
-                onClick={() => setCommentFor(null)}
+                onClick={() => {
+                  setCommentFor(null);
+                  setCommentTags("");
+                }}
                 className="rounded-md px-3 py-1.5 text-sm hover:bg-muted"
               >
                 Cancelar
@@ -833,9 +862,10 @@ export function VerseList({
               <button
                 onClick={() => {
                   const id = viewingHighlightId;
+                  setViewingHighlightId(null);
                   startTransition(async () => {
+                    updateOptimisticHighlights({ type: "remove", id });
                     await deleteHighlight(id, bookOrder, chapterNumber);
-                    setViewingHighlightId(null);
                   });
                 }}
                 disabled={pending}

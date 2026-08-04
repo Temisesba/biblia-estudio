@@ -1,12 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppUpdateButton } from "@/components/app-update-button";
+import { ImprovementNotesPanel } from "@/components/improvement-notes-panel";
+import { getImprovementNotes } from "@/lib/data/admin";
 
 export default async function AdminHomePage() {
   const supabase = await createClient();
-  const [{ count: users }, { count: verses }, { count: contexts }] = await Promise.all([
+  const [{ count: users }, { count: verses }, { count: contexts }, improvementNotes] = await Promise.all([
     supabase.from("profiles").select("*", { count: "exact", head: true }),
     supabase.from("verses").select("*", { count: "exact", head: true }),
     supabase.from("contexts").select("*", { count: "exact", head: true }),
+    getImprovementNotes(),
   ]);
 
   return (
@@ -18,6 +21,7 @@ export default async function AdminHomePage() {
         <Card label="Capítulos con contexto" value={contexts ?? 0} />
       </div>
       <AppUpdateButton />
+      <ImprovementNotesPanel notes={improvementNotes} />
     </div>
   );
 }

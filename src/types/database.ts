@@ -144,8 +144,40 @@ export interface Note {
   highlight_id: string | null;
   quoted_text: string | null;
   content: string;
+  tags: string[];
   created_at: string;
   updated_at: string;
+}
+
+export interface ContextHighlight {
+  id: string;
+  user_id: string;
+  book_id: number;
+  chapter_number: number;
+  field_key: string;
+  char_start: number;
+  char_end: number;
+  selected_text: string | null;
+  type: MarkType;
+  color: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContextFavorite {
+  id: string;
+  user_id: string;
+  book_id: number;
+  chapter_number: number;
+  field_key: string;
+  created_at: string;
+}
+
+export interface AdminImprovementNote {
+  id: string;
+  content: string;
+  created_by: string | null;
+  created_at: string;
 }
 
 export interface Favorite {

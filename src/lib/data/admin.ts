@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { BOOKS } from "@/lib/books-meta";
-import type { Profile } from "@/types/database";
+import type { Profile, AdminImprovementNote } from "@/types/database";
 
 export async function getAllProfiles(): Promise<Profile[]> {
   const supabase = await createClient();
@@ -31,6 +31,15 @@ export interface ActivityEntry {
   status: string;
   last_read_at: string | null;
   href: string;
+}
+
+export async function getImprovementNotes(): Promise<AdminImprovementNote[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("admin_improvement_notes")
+    .select("*")
+    .order("created_at", { ascending: false });
+  return (data as AdminImprovementNote[]) ?? [];
 }
 
 export async function getAllReadingActivity(): Promise<ActivityEntry[]> {

@@ -7,7 +7,7 @@ import type { Highlight, Note, Favorite } from "@/types/database";
 import type { WithBookName } from "@/lib/data/study";
 import type { PersonalTaggedVerse } from "@/lib/data/personal-topics";
 
-type Filter = "resaltados" | "subrayados" | "comentarios" | "notas" | "favoritos" | "etiquetas";
+type Filter = "resaltados" | "subrayados" | "comentarios" | "notas" | "favoritos" | "etiquetas" | "notas_etiquetas";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "resaltados", label: "Resaltados" },
@@ -15,7 +15,8 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "comentarios", label: "Comentarios" },
   { id: "notas", label: "Notas generales" },
   { id: "favoritos", label: "Favoritos" },
-  { id: "etiquetas", label: "Mis etiquetas" },
+  { id: "etiquetas", label: "Mis etiquetas de versículos" },
+  { id: "notas_etiquetas", label: "Notas por etiqueta" },
 ];
 
 function href(bookName: string, chapter: number, verse?: number | null) {
@@ -29,6 +30,18 @@ function groupByTag(tags: PersonalTaggedVerse[]): [string, PersonalTaggedVerse[]
     const list = groups.get(t.topicName) ?? [];
     list.push(t);
     groups.set(t.topicName, list);
+  }
+  return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function groupNotesByTag(notes: (Note & WithBookName)[]): [string, (Note & WithBookName)[]][] {
+  const groups = new Map<string, (Note & WithBookName)[]>();
+  for (const n of notes) {
+    for (const tag of n.tags ?? []) {
+      const list = groups.get(tag) ?? [];
+      list.push(n);
+      groups.set(tag, list);
+    }
   }
   return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 }
@@ -152,6 +165,34 @@ export function StudyExplorer({
                     key: `${t.href}-${i}`,
                     href: t.href,
                     title: `${t.bookName} ${t.chapterNumber}:${t.verseNumber}`,
+                  }))}
+                />
+              </div>
+            ))}
+          </div>
+        ))}
+
+      {filter === "notas_etiquetas" &&
+        (groupNotesByTag(notes).length === 0 ? (
+          <p className="text-sm text-foreground/50">
+            Aún no le has puesto etiquetas a tus notas o comentarios. Agrégales una al escribirlos.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-6">
+            {groupNotesByTag(notes).map(([tag, tagNotes]) => (
+              <div key={tag}>
+                <h3 className="mb-2 text-sm font-semibold text-primary">#{tag}</h3>
+                <ItemList
+                  empty=""
+                  items={tagNotes.map((n) => ({
+                    key: n.id,
+                    href: href(n.book_name, n.chapter_number, n.verse_number),
+                    title:
+                      n.verse_number !== null
+                        ? `${n.book_name} ${n.chapter_number}:${n.verse_number}`
+                        : `${n.book_name} ${n.chapter_number}`,
+                    body: n.content,
+                    date: n.created_at,
                   }))}
                 />
               </div>

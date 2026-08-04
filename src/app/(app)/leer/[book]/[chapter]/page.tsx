@@ -11,6 +11,8 @@ import {
   getUserChapterProgress,
   getReadChaptersMap,
   getPublicAnnotations,
+  getContextHighlights,
+  getContextFavorites,
   neighborChapter,
 } from "@/lib/data/bible";
 import { getCurrentProfile } from "@/lib/data/profile";
@@ -47,6 +49,8 @@ export default async function ChapterPage({
     allTopics,
     chapterPersonalTopics,
     allPersonalTopics,
+    contextHighlights,
+    contextFavorites,
   ] = await Promise.all([
     getChapterVerses(book.id, chapterNumber),
     getChapterContext(book.id, chapterNumber),
@@ -61,6 +65,8 @@ export default async function ChapterPage({
     getAllTopics(),
     getChapterPersonalTopics(profile.id, book.id, chapterNumber),
     getAllPersonalTopics(profile.id),
+    getContextHighlights(profile.id, book.id, chapterNumber),
+    getContextFavorites(profile.id, book.id, chapterNumber),
   ]);
 
   const prev = neighborChapter(book.order, chapterNumber, -1);
@@ -99,6 +105,8 @@ export default async function ChapterPage({
       chapterPersonalTopics={chapterPersonalTopics}
       allPersonalTopics={allPersonalTopics}
       context={context}
+      contextHighlights={contextHighlights}
+      contextFavorites={contextFavorites}
       isAdmin={profile.role === "admin"}
       prevHref={prev ? `/leer/${slugify(prev.book.name)}/${prev.chapter}` : null}
       nextHref={next ? `/leer/${slugify(next.book.name)}/${next.chapter}` : null}

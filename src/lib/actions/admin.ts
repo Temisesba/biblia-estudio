@@ -61,3 +61,22 @@ export async function toggleInviteActive(id: string, active: boolean) {
   if (error) throw new Error(error.message);
   revalidatePath("/admin/invitaciones");
 }
+
+export async function addImprovementNote(content: string) {
+  const supabase = await requireAdmin();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from("admin_improvement_notes")
+    .insert({ content, created_by: user!.id });
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin");
+}
+
+export async function deleteImprovementNote(id: string) {
+  const supabase = await requireAdmin();
+  const { error } = await supabase.from("admin_improvement_notes").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin");
+}

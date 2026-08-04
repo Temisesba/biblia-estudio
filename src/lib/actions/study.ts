@@ -83,6 +83,7 @@ export async function createNote(input: {
   highlightId: string | null;
   quotedText?: string | null;
   content: string;
+  tags?: string[];
 }) {
   const { supabase, userId } = await requireUser();
   const { data, error } = await supabase
@@ -95,6 +96,7 @@ export async function createNote(input: {
       highlight_id: input.highlightId,
       quoted_text: input.quotedText ?? null,
       content: input.content,
+      tags: input.tags ?? [],
     })
     .select("*")
     .single();
@@ -107,13 +109,13 @@ export async function updateNote(
   id: string,
   content: string,
   bookOrder: number,
-  chapterNumber: number
+  chapterNumber: number,
+  tags?: string[]
 ) {
   const { supabase } = await requireUser();
-  const { error } = await supabase
-    .from("notes")
-    .update({ content, updated_at: new Date().toISOString() })
-    .eq("id", id);
+  const changes: Record<string, unknown> = { content, updated_at: new Date().toISOString() };
+  if (tags !== undefined) changes.tags = tags;
+  const { error } = await supabase.from("notes").update(changes).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(chapterPath(bookOrder, chapterNumber));
 }

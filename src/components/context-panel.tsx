@@ -1,9 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import type { ChapterContext } from "@/types/database";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
+import { Star } from "lucide-react";
+import type { ChapterContext, ContextHighlight, ContextFavorite } from "@/types/database";
 import { saveChapterContext } from "@/lib/actions/context";
+import {
+  createContextHighlight,
+  deleteContextHighlight,
+  toggleContextFavorite,
+} from "@/lib/actions/context-study";
 import { parseContextPaste } from "@/lib/parse-context-paste";
+import { HIGHLIGHT_COLORS, DEFAULT_COLOR, UNDERLINE_COLOR } from "@/lib/highlight-colors";
 
 const DESGLOSE_FIELDS: { key: keyof ChapterContext; label: string }[] = [
   { key: "historical_context", label: "Contexto histórico y bíblico" },
@@ -23,17 +31,28 @@ const ALL_FIELDS: { key: keyof ChapterContext; label: string }[] = [
 
 type InnerTab = "narrativa" | "desglose";
 
+interface FieldSelection {
+  fieldKey: string;
+  charStart: number;
+  charEnd: number;
+  text: string;
+}
+
 export function ContextPanel({
   bookId,
   bookOrder,
   chapterNumber,
   context,
+  highlights,
+  favorites,
   isAdmin,
 }: {
   bookId: number;
   bookOrder: number;
   chapterNumber: number;
   context: ChapterContext | null;
+  highlights: ContextHighlight[];
+  favorites: ContextFavorite[];
   isAdmin: boolean;
 }) {
   const [editing, setEditing] = useState(false);
@@ -45,6 +64,137 @@ export function ContextPanel({
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [pasteFeedback, setPasteFeedback] = useState<string | null>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [optimisticHighlights, updateOptimisticHighlights] = useOptimistic<
+    ContextHighlight[],
+    { type: "add"; highlight: ContextHighlight } | { type: "remove"; id: string }
+  >(highlights, (state, action) =>
+    action.type === "add" ? [...state, action.highlight] : state.filter((h) => h.id !== action.id)
+  );
+  const [optimisticFavorites, updateOptimisticFavorites] = useOptimistic<
+    ContextFavorite[],
+    { type: "add"; favorite: ContextFavorite } | { type: "remove"; id: string }
+  >(favorites, (state, action) =>
+    action.type === "add" ? [...state, action.favorite] : state.filter((f) => f.id !== action.id)
+  );
+  const [selection, setSelection] = useState<FieldSelection | null>(null);
+  const [viewingHighlightId, setViewingHighlightId] = useState<string | null>(null);
+
+  function updateSelectionFromDOM() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+      setSelection(null);
+      return;
+    }
+    const text = sel.toString().trim();
+    if (!text) {
+      setSelection(null);
+      return;
+    }
+    const range = sel.getRangeAt(0);
+    const container = containerRef.current;
+    if (!container || !container.contains(range.commonAncestorContainer)) return;
+
+    const startFieldEl = closestFieldEl(range.startContainer);
+    const endFieldEl = closestFieldEl(range.endContainer);
+    if (!startFieldEl || !endFieldEl || startFieldEl !== endFieldEl) {
+      setSelection(null);
+      return;
+    }
+    const fieldKey = startFieldEl.dataset.field as string;
+    const textNode = startFieldEl.querySelector("[data-field-text]");
+    const full = textNode?.textContent ?? "";
+    const idx = full.indexOf(text);
+    if (idx < 0) {
+      setSelection(null);
+      return;
+    }
+    setSelection({ fieldKey, charStart: idx, charEnd: idx + text.length, text });
+  }
+
+  useEffect(() => {
+    if (editing) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    function onSelectionChange() {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(updateSelectionFromDOM, 150);
+    }
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => {
+      document.removeEventListener("selectionchange", onSelectionChange);
+      if (timer) clearTimeout(timer);
+    };
+  }, [editing]);
+
+  function applyHighlight(type: "resaltado" | "subrayado", color: string) {
+    if (!selection) return;
+    const optimisticEntry: ContextHighlight = {
+      id: `optimistic-${Date.now()}`,
+      user_id: "",
+      book_id: bookId,
+      chapter_number: chapterNumber,
+      field_key: selection.fieldKey,
+      char_start: selection.charStart,
+      char_end: selection.charEnd,
+      selected_text: selection.text,
+      type,
+      color,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const fieldKey = selection.fieldKey;
+    const charStart = selection.charStart;
+    const charEnd = selection.charEnd;
+    const text = selection.text;
+    window.getSelection()?.removeAllRanges();
+    setSelection(null);
+    startTransition(async () => {
+      updateOptimisticHighlights({ type: "add", highlight: optimisticEntry });
+      await createContextHighlight({
+        bookId,
+        bookOrder,
+        chapterNumber,
+        fieldKey,
+        charStart,
+        charEnd,
+        selectedText: text,
+        type,
+        color,
+      });
+    });
+  }
+
+  function favoriteFor(fieldKey: string) {
+    return optimisticFavorites.find((f) => f.field_key === fieldKey);
+  }
+
+  function toggleFieldFavorite(fieldKey: string) {
+    const fav = favoriteFor(fieldKey);
+    const existingId = fav?.id ?? null;
+    startTransition(async () => {
+      if (existingId) {
+        updateOptimisticFavorites({ type: "remove", id: existingId });
+      } else {
+        updateOptimisticFavorites({
+          type: "add",
+          favorite: {
+            id: `optimistic-${Date.now()}`,
+            user_id: "",
+            book_id: bookId,
+            chapter_number: chapterNumber,
+            field_key: fieldKey,
+            created_at: new Date().toISOString(),
+          },
+        });
+      }
+      await toggleContextFavorite({ bookId, bookOrder, chapterNumber, fieldKey, existingId });
+    });
+  }
+
+  function highlightsFor(fieldKey: string) {
+    return optimisticHighlights.filter((h) => h.field_key === fieldKey);
+  }
 
   function repartirPegado() {
     const { matched, unmatchedHeaders } = parseContextPaste(pasteText);
@@ -62,6 +212,8 @@ export function ContextPanel({
     setPasteText("");
     setShowPaste(false);
   }
+
+  const toolbarSlot = typeof document !== "undefined" ? document.getElementById("selection-toolbar-slot") : null;
 
   if (!context && !isAdmin) {
     return (
@@ -89,7 +241,22 @@ export function ContextPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4 py-4">
+    <div className="flex flex-col gap-4 py-4" ref={containerRef} onMouseUp={updateSelectionFromDOM}>
+      {toolbarSlot &&
+        !editing &&
+        createPortal(
+          <ContextSelectionToolbar
+            disabled={!selection}
+            pending={pending}
+            onColor={(color) => applyHighlight("resaltado", color)}
+            onUnderline={() => applyHighlight("subrayado", UNDERLINE_COLOR)}
+            onDismiss={() => {
+              window.getSelection()?.removeAllRanges();
+              setSelection(null);
+            }}
+          />,
+          toolbarSlot
+        )}
       <div className="flex items-center justify-between">
         <div className="flex gap-1 border-b border-border">
           <button
@@ -199,9 +366,21 @@ export function ContextPanel({
         <>
           {innerTab === "narrativa" &&
             (context?.explanation ? (
-              <p className="whitespace-pre-wrap rounded-lg border border-border bg-muted/60 p-4 text-sm leading-relaxed text-foreground/90">
-                {context.explanation}
-              </p>
+              <div data-field="explanation">
+                <div className="mb-1 flex justify-end">
+                  <FavoriteStarButton
+                    active={!!favoriteFor("explanation")}
+                    onToggle={() => toggleFieldFavorite("explanation")}
+                  />
+                </div>
+                <p className="whitespace-pre-wrap rounded-lg border border-border bg-muted/60 p-4 text-sm leading-relaxed text-foreground/90">
+                  <FieldText
+                    value={context.explanation}
+                    marks={highlightsFor("explanation").map(toMark)}
+                    onHighlightClick={setViewingHighlightId}
+                  />
+                </p>
+              </div>
             ) : (
               <p className="py-4 text-sm text-foreground/50">
                 Aún no hay narrativa escrita para este capítulo.
@@ -213,9 +392,21 @@ export function ContextPanel({
                 const value = context?.[f.key] as string | null;
                 if (!value) return null;
                 return (
-                  <section key={f.key}>
-                    <h3 className="mb-1 font-semibold text-primary">{f.label}</h3>
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{value}</p>
+                  <section key={f.key} data-field={f.key}>
+                    <div className="mb-1 flex items-center gap-2">
+                      <h3 className="font-semibold text-primary">{f.label}</h3>
+                      <FavoriteStarButton
+                        active={!!favoriteFor(f.key)}
+                        onToggle={() => toggleFieldFavorite(f.key)}
+                      />
+                    </div>
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+                      <FieldText
+                        value={value}
+                        marks={highlightsFor(f.key).map(toMark)}
+                        onHighlightClick={setViewingHighlightId}
+                      />
+                    </p>
                   </section>
                 );
               })}
@@ -225,6 +416,210 @@ export function ContextPanel({
             </div>
           )}
         </>
+      )}
+
+      {viewingHighlightId && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => setViewingHighlightId(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-lg border border-border bg-background p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-3 text-sm text-foreground/70">¿Quitar este resaltado o subrayado?</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setViewingHighlightId(null)} className="rounded-md px-3 py-1.5 text-sm hover:bg-muted">
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const id = viewingHighlightId;
+                  setViewingHighlightId(null);
+                  startTransition(async () => {
+                    updateOptimisticHighlights({ type: "remove", id });
+                    await deleteContextHighlight(id, bookOrder, chapterNumber);
+                  });
+                }}
+                disabled={pending}
+                className="rounded-md bg-red-500 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              >
+                Quitar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface FieldMark {
+  start: number;
+  end: number;
+  color: string;
+  underline: boolean;
+  id: string;
+}
+
+function toMark(h: ContextHighlight): FieldMark {
+  return { start: h.char_start, end: h.char_end, color: h.color, underline: h.type === "subrayado", id: h.id };
+}
+
+function FavoriteStarButton({ active, onToggle }: { active: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`inline-flex align-middle transition-opacity ${
+        active ? "opacity-100" : "opacity-40 hover:opacity-100"
+      }`}
+      aria-label="Marcar esta sección como favorita"
+    >
+      <Star size={14} fill={active ? "currentColor" : "none"} className={active ? "text-amber-500" : "text-foreground/40"} />
+    </button>
+  );
+}
+
+function FieldText({
+  value,
+  marks,
+  onHighlightClick,
+}: {
+  value: string;
+  marks: FieldMark[];
+  onHighlightClick: (id: string) => void;
+}) {
+  return <span data-field-text>{marks.length ? renderFieldMarks(value, marks, onHighlightClick) : value}</span>;
+}
+
+function renderFieldMarks(
+  fullText: string,
+  marks: { start: number; end: number; color: string; underline: boolean; id: string }[],
+  onClick: (id: string) => void
+) {
+  const sorted = [...marks].sort((a, b) => a.start - b.start);
+  const pieces: React.ReactNode[] = [];
+  let cursor = 0;
+  sorted.forEach((m, i) => {
+    const start = Math.max(m.start, cursor);
+    const end = Math.max(m.end, start);
+    if (start > cursor) pieces.push(fullText.slice(cursor, start));
+    const content = fullText.slice(start, end);
+    if (!content) return;
+    pieces.push(
+      <span
+        key={m.id ?? i}
+        role="button"
+        tabIndex={0}
+        onClick={() => onClick(m.id)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClick(m.id);
+          }
+        }}
+        style={
+          m.underline
+            ? { textDecorationLine: "underline", textDecorationColor: m.color, textDecorationThickness: "2px" }
+            : { backgroundColor: m.color }
+        }
+        className="cursor-pointer"
+      >
+        {content}
+      </span>
+    );
+    cursor = end;
+  });
+  if (cursor < fullText.length) pieces.push(fullText.slice(cursor));
+  return pieces;
+}
+
+function closestFieldEl(node: Node): HTMLElement | null {
+  let el: Node | null = node;
+  while (el) {
+    if (el instanceof HTMLElement && el.dataset.field) return el;
+    el = el.parentNode;
+  }
+  return null;
+}
+
+function ContextSelectionToolbar({
+  disabled,
+  pending,
+  onColor,
+  onUnderline,
+  onDismiss,
+}: {
+  disabled: boolean;
+  pending: boolean;
+  onColor: (color: string) => void;
+  onUnderline: () => void;
+  onDismiss: () => void;
+}) {
+  const actionsDisabled = disabled || pending;
+  const [activeColor, setActiveColor] = useState<string>(DEFAULT_COLOR);
+  const [colorMenuOpen, setColorMenuOpen] = useState(false);
+  const activeColorMeta = HIGHLIGHT_COLORS.find((c) => c.value === activeColor) ?? HIGHLIGHT_COLORS[0];
+
+  function pickColor(color: string) {
+    setActiveColor(color);
+    setColorMenuOpen(false);
+    onColor(color);
+  }
+
+  return (
+    <div
+      className={`flex items-center gap-1 rounded-md border border-border bg-muted/60 p-1 pr-2 mr-1 transition-all ${
+        disabled ? "opacity-40" : "opacity-100"
+      } ${pending ? "animate-pulse" : ""}`}
+    >
+      <div className="relative flex items-center">
+        <button
+          disabled={actionsDisabled}
+          title={`Resaltar en ${activeColorMeta.label.toLowerCase()}`}
+          onClick={() => pickColor(activeColor)}
+          className="h-6 w-6 rounded-full border border-black/10 disabled:pointer-events-none disabled:cursor-wait"
+          style={{ backgroundColor: activeColor }}
+        />
+        <button
+          disabled={actionsDisabled}
+          title="Elegir otro color"
+          onClick={() => setColorMenuOpen((o) => !o)}
+          className="px-0.5 text-[10px] text-foreground/60 hover:text-foreground disabled:pointer-events-none"
+        >
+          ▾
+        </button>
+        {colorMenuOpen && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setColorMenuOpen(false)} />
+            <div className="absolute right-0 top-full z-40 mt-2 flex gap-1 rounded-md border border-border bg-background p-1.5 shadow-lg">
+              {HIGHLIGHT_COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  title={`Resaltar en ${c.label.toLowerCase()}`}
+                  onClick={() => pickColor(c.value)}
+                  className="h-6 w-6 rounded-full border border-black/10"
+                  style={{ backgroundColor: c.value }}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <div className="mx-1 h-6 w-px bg-border" />
+      <button
+        onClick={onUnderline}
+        disabled={actionsDisabled}
+        title="Subrayar"
+        className="rounded px-2 py-1 text-sm font-semibold underline hover:bg-muted disabled:pointer-events-none disabled:cursor-wait"
+      >
+        U
+      </button>
+      {!disabled && (
+        <button onClick={onDismiss} title="Cerrar" className="rounded px-2 py-1 text-sm hover:bg-muted">
+          ✕
+        </button>
       )}
     </div>
   );

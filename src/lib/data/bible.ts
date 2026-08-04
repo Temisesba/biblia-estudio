@@ -11,6 +11,8 @@ import type {
   ReadingProgress,
   PublicAnnotation,
   SectionTitle,
+  ContextHighlight,
+  ContextFavorite,
 } from "@/types/database";
 
 export async function resolveBook(slug: string) {
@@ -149,6 +151,36 @@ export async function getUserFavorites(
     .eq("book_id", bookId)
     .eq("chapter_number", chapterNumber);
   return (data as Favorite[]) ?? [];
+}
+
+export async function getContextHighlights(
+  userId: string,
+  bookId: number,
+  chapterNumber: number
+): Promise<ContextHighlight[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("context_highlights")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("book_id", bookId)
+    .eq("chapter_number", chapterNumber);
+  return (data as ContextHighlight[]) ?? [];
+}
+
+export async function getContextFavorites(
+  userId: string,
+  bookId: number,
+  chapterNumber: number
+): Promise<ContextFavorite[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("context_favorites")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("book_id", bookId)
+    .eq("chapter_number", chapterNumber);
+  return (data as ContextFavorite[]) ?? [];
 }
 
 export async function getUserChapterProgress(

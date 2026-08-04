@@ -20,7 +20,7 @@ export default function LoginPage() {
       <p className="text-sm text-foreground/60">
         ¿No tienes cuenta?{" "}
         <Link href="/registro" className="font-medium text-primary underline">
-          Regístrate con tu código de invitación
+          Regístrate aquí
         </Link>
       </p>
     </main>

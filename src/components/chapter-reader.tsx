@@ -19,6 +19,8 @@ import type {
   Topic,
   PersonalTopic,
   SectionTitle,
+  ContextHighlight,
+  ContextFavorite,
 } from "@/types/database";
 import type { ChapterTopicsMap } from "@/lib/data/topics";
 import type { ChapterPersonalTopicsMap } from "@/lib/data/personal-topics";
@@ -50,6 +52,8 @@ export function ChapterReader(props: {
   chapterPersonalTopics: ChapterPersonalTopicsMap;
   allPersonalTopics: (PersonalTopic & { verseCount: number })[];
   context: ChapterContext | null;
+  contextHighlights: ContextHighlight[];
+  contextFavorites: ContextFavorite[];
   isAdmin: boolean;
   prevHref: string | null;
   nextHref: string | null;
@@ -166,6 +170,8 @@ export function ChapterReader(props: {
           bookOrder={props.bookOrder}
           chapterNumber={props.chapterNumber}
           context={props.context}
+          highlights={props.contextHighlights}
+          favorites={props.contextFavorites}
           isAdmin={props.isAdmin}
         />
       )}
