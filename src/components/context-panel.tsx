@@ -2,6 +2,7 @@
 
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "next/navigation";
 import { Star } from "lucide-react";
 import type { ChapterContext, ContextHighlight, ContextFavorite } from "@/types/database";
 import { saveChapterContext } from "@/lib/actions/context";
@@ -46,6 +47,7 @@ export function ContextPanel({
   highlights,
   favorites,
   isAdmin,
+  jumpToField,
 }: {
   bookId: number;
   bookOrder: number;
@@ -54,9 +56,11 @@ export function ContextPanel({
   highlights: ContextHighlight[];
   favorites: ContextFavorite[];
   isAdmin: boolean;
+  jumpToField?: { key: string; token: number } | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [innerTab, setInnerTab] = useState<InnerTab>("desglose");
+  const [flashField, setFlashField] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(ALL_FIELDS.map((f) => [f.key, (context?.[f.key] as string) ?? ""]))
   );
@@ -126,6 +130,36 @@ export function ContextPanel({
       if (timer) clearTimeout(timer);
     };
   }, [editing]);
+
+  const searchParams = useSearchParams();
+
+  function jumpToFieldKey(fieldKey: string) {
+    setInnerTab(fieldKey === "explanation" ? "narrativa" : "desglose");
+    // Espera a que el cambio de pestaña interna pinte el campo antes de buscarlo en el DOM.
+    const timer = setTimeout(() => {
+      const el = containerRef.current?.querySelector<HTMLElement>(`[data-field="${fieldKey}"]`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setFlashField(fieldKey);
+      setTimeout(() => setFlashField((cur) => (cur === fieldKey ? null : cur)), 2000);
+    }, 50);
+    return () => clearTimeout(timer);
+  }
+
+  // Salto disparado desde "Mis notas" (misma sesion, sin recargar la URL).
+  useEffect(() => {
+    if (!jumpToField) return;
+    return jumpToFieldKey(jumpToField.key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpToField]);
+
+  // Salto disparado al llegar directo desde "Mi estudio" con ?tab=contexto&field=X en la URL.
+  useEffect(() => {
+    const field = searchParams.get("field");
+    if (!field) return;
+    return jumpToFieldKey(field);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   function applyHighlight(type: "resaltado" | "subrayado", color: string) {
     if (!selection) return;
@@ -366,7 +400,10 @@ export function ContextPanel({
         <>
           {innerTab === "narrativa" &&
             (context?.explanation ? (
-              <div data-field="explanation">
+              <div
+                data-field="explanation"
+                className={`rounded-md transition-colors duration-700 ${flashField === "explanation" ? "bg-primary/15" : ""}`}
+              >
                 <div className="mb-1 flex justify-end">
                   <FavoriteStarButton
                     active={!!favoriteFor("explanation")}
@@ -392,7 +429,11 @@ export function ContextPanel({
                 const value = context?.[f.key] as string | null;
                 if (!value) return null;
                 return (
-                  <section key={f.key} data-field={f.key}>
+                  <section
+                    key={f.key}
+                    data-field={f.key}
+                    className={`rounded-md transition-colors duration-700 ${flashField === f.key ? "bg-primary/15" : ""}`}
+                  >
                     <div className="mb-1 flex items-center gap-2">
                       <h3 className="font-semibold text-primary">{f.label}</h3>
                       <FavoriteStarButton

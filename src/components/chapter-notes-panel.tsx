@@ -19,6 +19,7 @@ export function ChapterNotesPanel({
   contextFavorites,
   chapterPersonalTopics,
   onJumpToVerse,
+  onJumpToContext,
 }: {
   bookId: number;
   bookOrder: number;
@@ -29,6 +30,7 @@ export function ChapterNotesPanel({
   contextFavorites: ContextFavorite[];
   chapterPersonalTopics: ChapterPersonalTopicsMap;
   onJumpToVerse?: (verseNumber: number) => void;
+  onJumpToContext?: (fieldKey: string) => void;
 }) {
   const taggedVerses = Object.entries(chapterPersonalTopics)
     .map(([verseNumber, tags]) => ({ verseNumber: Number(verseNumber), tags }))
@@ -135,6 +137,7 @@ export function ChapterNotesPanel({
               note={n}
               bookOrder={bookOrder}
               chapterNumber={chapterNumber}
+              onJump={n.verse_number !== null ? () => onJumpToVerse?.(n.verse_number as number) : undefined}
               onDelete={() =>
                 startTransition(async () => {
                   removeOptimisticNote(n.id);
@@ -156,6 +159,7 @@ export function ChapterNotesPanel({
             <HighlightItem
               key={h.id}
               highlight={h}
+              onJump={() => onJumpToVerse?.(h.verse_start)}
               onDelete={() =>
                 startTransition(async () => {
                   removeOptimisticHighlight(h.id);
@@ -175,15 +179,19 @@ export function ChapterNotesPanel({
         <ul className="flex flex-col gap-2">
           {optimisticContextHighlights.map((h) => (
             <li key={h.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3 text-sm">
-              <div className="flex items-center gap-2">
+              <button
+                onClick={() => onJumpToContext?.(h.field_key)}
+                className="flex items-center gap-2 text-left hover:underline"
+              >
                 <span className="h-4 w-4 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: h.color }} />
                 <div>
                   <p className="text-xs text-foreground/50">
-                    {h.type === "subrayado" ? "Subrayado" : "Resaltado"} · {contextFieldLabel(h.field_key)}
+                    {h.type === "subrayado" ? "Subrayado" : "Resaltado"} ·{" "}
+                    <span className="text-primary">{contextFieldLabel(h.field_key)}</span>
                   </p>
                   <p className="italic">&ldquo;{h.selected_text}&rdquo;</p>
                 </div>
-              </div>
+              </button>
               <ConfirmDeleteButton
                 onConfirm={() =>
                   startTransition(async () => {
@@ -205,10 +213,13 @@ export function ChapterNotesPanel({
         <ul className="flex flex-col gap-2">
           {optimisticContextFavorites.map((f) => (
             <li key={f.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3 text-sm">
-              <div className="flex items-center gap-2">
+              <button
+                onClick={() => onJumpToContext?.(f.field_key)}
+                className="flex items-center gap-2 text-left text-primary hover:underline"
+              >
                 <Star size={14} fill="currentColor" className="text-amber-500" />
                 <span>{contextFieldLabel(f.field_key)}</span>
-              </div>
+              </button>
               <ConfirmDeleteButton
                 onConfirm={() =>
                   startTransition(async () => {
@@ -235,11 +246,13 @@ function CommentItem({
   note,
   bookOrder,
   chapterNumber,
+  onJump,
   onDelete,
 }: {
   note: Note;
   bookOrder: number;
   chapterNumber: number;
+  onJump?: () => void;
   onDelete: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -250,7 +263,13 @@ function CommentItem({
   return (
     <li className="rounded-md border border-border p-3 text-sm">
       <div className="mb-1 flex items-center justify-between text-xs text-foreground/50">
-        <span>Versículo {note.verse_number}</span>
+        {onJump ? (
+          <button onClick={onJump} className="font-medium text-primary hover:underline">
+            Versículo {note.verse_number}
+          </button>
+        ) : (
+          <span>Versículo {note.verse_number}</span>
+        )}
         <span>{new Date(note.created_at).toLocaleDateString("es-MX")}</span>
       </div>
       {note.quoted_text && (
@@ -309,25 +328,29 @@ function CommentItem({
 
 function HighlightItem({
   highlight,
+  onJump,
   onDelete,
 }: {
   highlight: Highlight;
+  onJump?: () => void;
   onDelete: () => void;
 }) {
   return (
     <li className="flex items-center justify-between gap-3 rounded-md border border-border p-3 text-sm">
-      <div className="flex items-center gap-2">
+      <button onClick={onJump} className="flex items-center gap-2 text-left hover:underline">
         <span className="h-4 w-4 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: highlight.color }} />
         <div>
           <p className="text-xs text-foreground/50">
             {highlight.type === "subrayado" ? "Subrayado" : "Resaltado"} · v.{" "}
-            {highlight.verse_start === highlight.verse_end
-              ? highlight.verse_start
-              : `${highlight.verse_start}-${highlight.verse_end}`}
+            <span className="text-primary">
+              {highlight.verse_start === highlight.verse_end
+                ? highlight.verse_start
+                : `${highlight.verse_start}-${highlight.verse_end}`}
+            </span>
           </p>
           <p className="italic">&ldquo;{highlight.selected_text}&rdquo;</p>
         </div>
-      </div>
+      </button>
       <ConfirmDeleteButton onConfirm={onDelete} />
     </li>
   );

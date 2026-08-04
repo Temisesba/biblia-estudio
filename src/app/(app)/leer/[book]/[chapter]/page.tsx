@@ -88,6 +88,11 @@ export default async function ChapterPage({
 
   return (
     <ChapterReader
+      // Sin key, React reutiliza la misma instancia de ChapterReader al navegar entre
+      // capitulos (mismo patron de ruta), asi que la pestana activa y el "scroll a este
+      // versiculo" de la vez anterior se quedaban pegados en vez de resetear con el nuevo
+      // capitulo. La key fuerza un remount limpio por cada libro+capitulo.
+      key={`${book.id}-${chapterNumber}`}
       bookId={book.id}
       bookOrder={book.order}
       bookName={book.name}

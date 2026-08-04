@@ -36,8 +36,8 @@ function href(bookName: string, chapter: number, verse?: number | null) {
   return verse ? `${base}?v=${verse}` : base;
 }
 
-function contextHref(bookName: string, chapter: number) {
-  return `/leer/${slugify(bookName)}/${chapter}?tab=contexto`;
+function contextHref(bookName: string, chapter: number, fieldKey: string) {
+  return `/leer/${slugify(bookName)}/${chapter}?tab=contexto&field=${encodeURIComponent(fieldKey)}`;
 }
 
 function groupByTag(tags: PersonalTaggedVerse[]): [string, PersonalTaggedVerse[]][] {
@@ -197,7 +197,7 @@ export function StudyExplorer({
           empty="No tienes nada resaltado en Contexto todavía."
           items={contextHighlights.map((h) => ({
             key: h.id,
-            href: contextHref(h.book_name, h.chapter_number),
+            href: contextHref(h.book_name, h.chapter_number, h.field_key),
             title: `${h.book_name} ${h.chapter_number} · ${contextFieldLabel(h.field_key)} (Contexto)`,
             body: h.selected_text,
             date: h.created_at,
@@ -211,7 +211,7 @@ export function StudyExplorer({
           empty="No tienes favoritos en Contexto todavía."
           items={contextFavorites.map((f) => ({
             key: f.id,
-            href: contextHref(f.book_name, f.chapter_number),
+            href: contextHref(f.book_name, f.chapter_number, f.field_key),
             title: `${f.book_name} ${f.chapter_number} · ${contextFieldLabel(f.field_key)} (Contexto)`,
             date: f.created_at,
           }))}

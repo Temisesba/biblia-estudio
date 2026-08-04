@@ -65,6 +65,7 @@ export function ChapterReader(props: {
     TABS.some((t) => t.id === initialTab) ? (initialTab as Tab) : "texto"
   );
   const [jumpTarget, setJumpTarget] = useState<number | null>(null);
+  const [jumpField, setJumpField] = useState<{ key: string; token: number } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [chapterQuery, setChapterQuery] = useState("");
 
@@ -178,6 +179,7 @@ export function ChapterReader(props: {
           highlights={props.contextHighlights}
           favorites={props.contextFavorites}
           isAdmin={props.isAdmin}
+          jumpToField={jumpField}
         />
       )}
       {tab === "notas" && (
@@ -193,6 +195,10 @@ export function ChapterReader(props: {
           onJumpToVerse={(v) => {
             setJumpTarget(v);
             setTab("texto");
+          }}
+          onJumpToContext={(fieldKey) => {
+            setJumpField((cur) => ({ key: fieldKey, token: (cur?.token ?? 0) + 1 }));
+            setTab("contexto");
           }}
         />
       )}
