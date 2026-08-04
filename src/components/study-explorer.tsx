@@ -3,11 +3,21 @@
 import { useState } from "react";
 import Link from "next/link";
 import { slugify } from "@/lib/books-meta";
-import type { Highlight, Note, Favorite } from "@/types/database";
+import type { Highlight, Note, Favorite, ContextHighlight, ContextFavorite } from "@/types/database";
 import type { WithBookName } from "@/lib/data/study";
 import type { PersonalTaggedVerse } from "@/lib/data/personal-topics";
+import { contextFieldLabel } from "@/lib/context-fields";
 
-type Filter = "resaltados" | "subrayados" | "comentarios" | "notas" | "favoritos" | "etiquetas" | "notas_etiquetas";
+type Filter =
+  | "resaltados"
+  | "subrayados"
+  | "comentarios"
+  | "notas"
+  | "favoritos"
+  | "etiquetas"
+  | "notas_etiquetas"
+  | "contexto_resaltados"
+  | "contexto_favoritos";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "resaltados", label: "Resaltados" },
@@ -17,11 +27,17 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "favoritos", label: "Favoritos" },
   { id: "etiquetas", label: "Mis etiquetas de versículos" },
   { id: "notas_etiquetas", label: "Notas por etiqueta" },
+  { id: "contexto_resaltados", label: "Resaltados en Contexto" },
+  { id: "contexto_favoritos", label: "Favoritos en Contexto" },
 ];
 
 function href(bookName: string, chapter: number, verse?: number | null) {
   const base = `/leer/${slugify(bookName)}/${chapter}`;
   return verse ? `${base}?v=${verse}` : base;
+}
+
+function contextHref(bookName: string, chapter: number) {
+  return `/leer/${slugify(bookName)}/${chapter}?tab=contexto`;
 }
 
 function groupByTag(tags: PersonalTaggedVerse[]): [string, PersonalTaggedVerse[]][] {
@@ -51,11 +67,15 @@ export function StudyExplorer({
   notes,
   favorites,
   personalTags,
+  contextHighlights,
+  contextFavorites,
 }: {
   highlights: (Highlight & WithBookName)[];
   notes: (Note & WithBookName)[];
   favorites: (Favorite & WithBookName)[];
   personalTags: PersonalTaggedVerse[];
+  contextHighlights: (ContextHighlight & WithBookName)[];
+  contextFavorites: (ContextFavorite & WithBookName)[];
 }) {
   const [filter, setFilter] = useState<Filter>("resaltados");
 
@@ -171,6 +191,32 @@ export function StudyExplorer({
             ))}
           </div>
         ))}
+
+      {filter === "contexto_resaltados" && (
+        <ItemList
+          empty="No tienes nada resaltado en Contexto todavía."
+          items={contextHighlights.map((h) => ({
+            key: h.id,
+            href: contextHref(h.book_name, h.chapter_number),
+            title: `${h.book_name} ${h.chapter_number} · ${contextFieldLabel(h.field_key)} (Contexto)`,
+            body: h.selected_text,
+            date: h.created_at,
+            color: h.color,
+          }))}
+        />
+      )}
+
+      {filter === "contexto_favoritos" && (
+        <ItemList
+          empty="No tienes favoritos en Contexto todavía."
+          items={contextFavorites.map((f) => ({
+            key: f.id,
+            href: contextHref(f.book_name, f.chapter_number),
+            title: `${f.book_name} ${f.chapter_number} · ${contextFieldLabel(f.field_key)} (Contexto)`,
+            date: f.created_at,
+          }))}
+        />
+      )}
 
       {filter === "notas_etiquetas" &&
         (groupNotesByTag(notes).length === 0 ? (

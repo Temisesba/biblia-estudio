@@ -85,7 +85,7 @@ export function ReadingCalendar({ entries }: { entries: ReadingEntry[] }) {
           return (
             <button
               key={i}
-              onClick={() => setSelectedDay(dayEntries.length ? key : null)}
+              onClick={() => setSelectedDay((cur) => (cur === key ? null : key))}
               className={`aspect-square rounded-md text-sm transition-colors ${
                 dayEntries.length ? "bg-primary/20 font-semibold hover:bg-primary/30" : "hover:bg-muted"
               } ${isSelected ? "ring-2 ring-primary" : ""} ${isToday ? "border-2 border-primary" : ""}`}
@@ -99,15 +99,19 @@ export function ReadingCalendar({ entries }: { entries: ReadingEntry[] }) {
       {selectedDay && (
         <div className="mt-4 border-t border-border pt-3">
           <p className="mb-2 text-sm font-medium">Leído el {selectedDay}</p>
-          <ul className="flex flex-col gap-1">
-            {(byDay.get(selectedDay) ?? []).map((e, idx) => (
-              <li key={idx}>
-                <Link href={e.href} className="text-sm text-primary hover:underline">
-                  {e.book_name} {e.chapter_number}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {(byDay.get(selectedDay) ?? []).length === 0 ? (
+            <p className="text-sm text-foreground/50">No hay lecturas registradas este día.</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {(byDay.get(selectedDay) ?? []).map((e, idx) => (
+                <li key={idx}>
+                  <Link href={e.href} className="text-sm text-primary hover:underline">
+                    {e.book_name} {e.chapter_number}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

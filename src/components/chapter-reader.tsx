@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { BookPicker } from "@/components/book-picker";
 import { VerseList } from "@/components/verse-list";
@@ -58,7 +59,11 @@ export function ChapterReader(props: {
   prevHref: string | null;
   nextHref: string | null;
 }) {
-  const [tab, setTab] = useState<Tab>("texto");
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab");
+  const [tab, setTab] = useState<Tab>(
+    TABS.some((t) => t.id === initialTab) ? (initialTab as Tab) : "texto"
+  );
   const [jumpTarget, setJumpTarget] = useState<number | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [chapterQuery, setChapterQuery] = useState("");
@@ -182,6 +187,8 @@ export function ChapterReader(props: {
           chapterNumber={props.chapterNumber}
           notes={props.notes}
           highlights={props.highlights}
+          contextHighlights={props.contextHighlights}
+          contextFavorites={props.contextFavorites}
           chapterPersonalTopics={props.chapterPersonalTopics}
           onJumpToVerse={(v) => {
             setJumpTarget(v);

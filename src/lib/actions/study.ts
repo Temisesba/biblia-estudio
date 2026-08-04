@@ -153,20 +153,24 @@ export async function toggleFavorite(input: {
   revalidatePath("/mi-estudio");
 }
 
-export async function markChapterRead(bookOrder: number, chapterNumber: number) {
-  const { supabase } = await requireUser();
+// Nota: "order" es un parámetro reservado en PostgREST (usado para ORDER BY), así que
+// no se puede filtrar con .eq("order", ...) sobre una columna llamada "order" — se trae
+// la lista completa (66 filas) y se filtra en JS.
+async function resolveBookId(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], bookOrder: number) {
   const book = BOOKS.find((b) => b.order === bookOrder);
   if (!book) throw new Error("Libro no encontrado");
-
-  // Nota: "order" es un parámetro reservado en PostgREST (usado para ORDER BY),
-  // así que no se puede filtrar con .eq("order", ...) sobre una columna llamada
-  // "order" — se trae la lista completa (66 filas) y se filtra en JS.
   const { data: allBooks } = await supabase.from("books").select("id, order");
   const bookRow = (allBooks ?? []).find((b) => b.order === bookOrder);
   if (!bookRow) throw new Error("Libro no sembrado en la base de datos");
+  return bookRow.id as number;
+}
+
+export async function markChapterRead(bookOrder: number, chapterNumber: number) {
+  const { supabase } = await requireUser();
+  const bookId = await resolveBookId(supabase, bookOrder);
 
   const { error } = await supabase.rpc("mark_chapter_read", {
-    p_book_id: bookRow.id,
+    p_book_id: bookId,
     p_chapter_number: chapterNumber,
   });
   if (error) throw new Error(error.message);
@@ -186,7 +190,7 @@ export async function markChapterRead(bookOrder: number, chapterNumber: number) 
       const { data: days } = await supabase
         .from("reading_plan_days")
         .select("plan_id, day_number")
-        .eq("book_id", bookRow.id)
+        .eq("book_id", bookId)
         .eq("chapter_number", chapterNumber)
         .in("plan_id", planIds);
       if (days && days.length > 0) {
@@ -200,5 +204,45 @@ export async function markChapterRead(bookOrder: number, chapterNumber: number) 
 
   revalidatePath(chapterPath(bookOrder, chapterNumber));
   revalidatePath("/mi-estudio");
+  revalidatePath("/progreso");
+}
+
+// Desmarca el estado sin tocar el historial (veces leido, primera/ultima lectura):
+// "leido" es un estado que se puede prender y apagar, pero cuantas veces lo leiste
+// y cuando ya sucedieron y no deberian borrarse por desmarcar la casilla.
+export async function unmarkChapterRead(bookOrder: number, chapterNumber: number) {
+  const { supabase, userId } = await requireUser();
+  const bookId = await resolveBookId(supabase, bookOrder);
+
+  const { error } = await supabase
+    .from("reading_progress")
+    .update({ status: "pendiente" })
+    .eq("user_id", userId)
+    .eq("book_id", bookId)
+    .eq("chapter_number", chapterNumber);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(chapterPath(bookOrder, chapterNumber));
+  revalidatePath("/mi-estudio");
+  revalidatePath("/progreso");
+}
+
+// Permite corregir la fecha de "primera lectura" (la que ancla el capitulo en el
+// calendario de Progreso) para capitulos que se leyeron antes de usar la app.
+export async function updateReadingProgressDate(bookOrder: number, chapterNumber: number, isoDate: string) {
+  const { supabase, userId } = await requireUser();
+  const bookId = await resolveBookId(supabase, bookOrder);
+  const date = new Date(`${isoDate}T12:00:00`);
+  if (Number.isNaN(date.getTime())) throw new Error("Fecha invalida");
+
+  const { error } = await supabase
+    .from("reading_progress")
+    .update({ first_read_at: date.toISOString() })
+    .eq("user_id", userId)
+    .eq("book_id", bookId)
+    .eq("chapter_number", chapterNumber);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(chapterPath(bookOrder, chapterNumber));
   revalidatePath("/progreso");
 }

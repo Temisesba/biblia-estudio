@@ -1,8 +1,12 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import type { ReadingProgress } from "@/types/database";
-import { markChapterRead } from "@/lib/actions/study";
+import { markChapterRead, unmarkChapterRead, updateReadingProgressDate } from "@/lib/actions/study";
+
+function toDateInputValue(iso: string) {
+  return new Date(iso).toISOString().slice(0, 10);
+}
 
 export function ChapterProgressPanel({
   bookOrder,
@@ -14,28 +18,112 @@ export function ChapterProgressPanel({
   progress: ReadingProgress | null;
 }) {
   const [pending, startTransition] = useTransition();
+  const [editingDate, setEditingDate] = useState(false);
+  const [dateDraft, setDateDraft] = useState(progress?.first_read_at ? toDateInputValue(progress.first_read_at) : "");
+  const [justLoggedAgain, setJustLoggedAgain] = useState(false);
   const done = progress?.status === "terminado";
+
+  function toggleDone() {
+    startTransition(async () => {
+      if (done) {
+        await unmarkChapterRead(bookOrder, chapterNumber);
+      } else {
+        await markChapterRead(bookOrder, chapterNumber);
+      }
+    });
+  }
+
+  function leerOtraVez() {
+    startTransition(async () => {
+      await markChapterRead(bookOrder, chapterNumber);
+      setJustLoggedAgain(true);
+      setTimeout(() => setJustLoggedAgain(false), 2000);
+    });
+  }
+
+  function saveDate() {
+    if (!dateDraft) return;
+    startTransition(async () => {
+      await updateReadingProgressDate(bookOrder, chapterNumber, dateDraft);
+      setEditingDate(false);
+    });
+  }
 
   return (
     <div className="flex flex-col gap-4 py-6">
-      <label className="flex items-center gap-3 rounded-md border border-border p-4">
-        <input
-          type="checkbox"
-          checked={done}
-          disabled={pending}
-          onChange={() => startTransition(() => markChapterRead(bookOrder, chapterNumber))}
-          className="h-5 w-5 accent-[var(--primary)]"
-        />
-        <span className="font-medium">Marcar este capítulo como leído</span>
-      </label>
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-3 rounded-md border border-border p-4">
+          <input
+            type="checkbox"
+            checked={done}
+            disabled={pending}
+            onChange={toggleDone}
+            className="h-5 w-5 accent-[var(--primary)]"
+          />
+          <span className="font-medium">
+            {done ? "Leído ✓ (desmarcar quita el estado, no el historial)" : "Marcar este capítulo como leído"}
+          </span>
+        </label>
+
+        {done && (
+          <button
+            type="button"
+            onClick={leerOtraVez}
+            disabled={pending}
+            className={`rounded-md border border-border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+              justLoggedAgain ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"
+            }`}
+          >
+            {justLoggedAgain ? "✓ Registrado" : "🔁 Leído otra vez"}
+          </button>
+        )}
+      </div>
 
       <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
         <Stat label="Estado" value={statusLabel(progress?.status)} />
         <Stat label="Veces leído" value={String(progress?.times_read ?? 0)} />
-        <Stat
-          label="Primera lectura"
-          value={progress?.first_read_at ? new Date(progress.first_read_at).toLocaleDateString("es-MX") : "—"}
-        />
+        <div className="rounded-md bg-muted p-3">
+          <dt className="text-xs text-foreground/50">Primera lectura</dt>
+          {editingDate ? (
+            <div className="mt-1 flex items-center gap-1.5">
+              <input
+                type="date"
+                value={dateDraft}
+                onChange={(e) => setDateDraft(e.target.value)}
+                className="w-full rounded border border-border bg-background px-1.5 py-1 text-xs outline-none focus:border-primary"
+              />
+              <button
+                onClick={saveDate}
+                disabled={pending}
+                className="shrink-0 rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+              >
+                Guardar
+              </button>
+              <button
+                onClick={() => setEditingDate(false)}
+                className="shrink-0 text-xs text-foreground/50 hover:underline"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <dd className="flex items-center gap-2 font-semibold">
+              {progress?.first_read_at ? new Date(progress.first_read_at).toLocaleDateString("es-MX") : "—"}
+              {progress?.first_read_at && (
+                <button
+                  onClick={() => {
+                    setDateDraft(toDateInputValue(progress.first_read_at as string));
+                    setEditingDate(true);
+                  }}
+                  title="Corregir fecha"
+                  className="text-xs font-normal text-primary hover:underline"
+                >
+                  editar
+                </button>
+              )}
+            </dd>
+          )}
+        </div>
         <Stat
           label="Última lectura"
           value={progress?.last_read_at ? new Date(progress.last_read_at).toLocaleString("es-MX") : "—"}

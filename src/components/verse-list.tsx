@@ -20,7 +20,14 @@ import type {
 import type { ChapterTopicsMap } from "@/lib/data/topics";
 import type { ChapterPersonalTopicsMap } from "@/lib/data/personal-topics";
 import { HIGHLIGHT_COLORS, DEFAULT_COLOR, UNDERLINE_COLOR } from "@/lib/highlight-colors";
-import { createHighlight, deleteHighlight, toggleFavorite, createNote, markChapterRead } from "@/lib/actions/study";
+import {
+  createHighlight,
+  deleteHighlight,
+  toggleFavorite,
+  createNote,
+  markChapterRead,
+  unmarkChapterRead,
+} from "@/lib/actions/study";
 import {
   createPublicAnnotation,
   updatePublicAnnotation,
@@ -677,10 +684,18 @@ export function VerseList({
           type="checkbox"
           checked={progress?.status === "terminado"}
           disabled={pending}
-          onChange={() => startTransition(() => markChapterRead(bookOrder, chapterNumber))}
+          onChange={() =>
+            startTransition(() =>
+              progress?.status === "terminado"
+                ? unmarkChapterRead(bookOrder, chapterNumber)
+                : markChapterRead(bookOrder, chapterNumber)
+            )
+          }
           className="h-5 w-5 accent-[var(--primary)]"
         />
-        <span className="font-medium">Marcar este capítulo como leído</span>
+        <span className="font-medium">
+          {progress?.status === "terminado" ? "Leído ✓ (ve a la pestaña Progreso para leer otra vez)" : "Marcar este capítulo como leído"}
+        </span>
       </label>
 
       {commentFor && (

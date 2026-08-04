@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/data/profile";
-import { getAllUserHighlights, getAllUserNotes, getAllUserFavorites } from "@/lib/data/study";
+import {
+  getAllUserHighlights,
+  getAllUserNotes,
+  getAllUserFavorites,
+  getAllUserContextHighlights,
+  getAllUserContextFavorites,
+} from "@/lib/data/study";
 import { getAllPersonalTaggedVerses } from "@/lib/data/personal-topics";
 import { StudyExplorer } from "@/components/study-explorer";
 
@@ -8,11 +14,13 @@ export default async function MiEstudioPage() {
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login");
 
-  const [highlights, notes, favorites, personalTags] = await Promise.all([
+  const [highlights, notes, favorites, personalTags, contextHighlights, contextFavorites] = await Promise.all([
     getAllUserHighlights(profile.id),
     getAllUserNotes(profile.id),
     getAllUserFavorites(profile.id),
     getAllPersonalTaggedVerses(profile.id),
+    getAllUserContextHighlights(profile.id),
+    getAllUserContextFavorites(profile.id),
   ]);
 
   return (
@@ -23,6 +31,8 @@ export default async function MiEstudioPage() {
         notes={notes}
         favorites={favorites}
         personalTags={personalTags}
+        contextHighlights={contextHighlights}
+        contextFavorites={contextFavorites}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { BOOKS } from "@/lib/books-meta";
-import type { Highlight, Note, Favorite, ReadingProgress } from "@/types/database";
+import type { Highlight, Note, Favorite, ReadingProgress, ContextHighlight, ContextFavorite } from "@/types/database";
 
 export interface WithBookName {
   book_name: string;
@@ -42,6 +42,24 @@ export async function getAllUserFavorites(userId: string): Promise<(Favorite & W
     bookOrderMap(),
   ]);
   return ((data as Favorite[]) ?? []).map((f) => ({ ...f, book_name: nameFor(orderMap, f.book_id) }));
+}
+
+export async function getAllUserContextHighlights(userId: string): Promise<(ContextHighlight & WithBookName)[]> {
+  const supabase = await createClient();
+  const [{ data }, orderMap] = await Promise.all([
+    supabase.from("context_highlights").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+    bookOrderMap(),
+  ]);
+  return ((data as ContextHighlight[]) ?? []).map((h) => ({ ...h, book_name: nameFor(orderMap, h.book_id) }));
+}
+
+export async function getAllUserContextFavorites(userId: string): Promise<(ContextFavorite & WithBookName)[]> {
+  const supabase = await createClient();
+  const [{ data }, orderMap] = await Promise.all([
+    supabase.from("context_favorites").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+    bookOrderMap(),
+  ]);
+  return ((data as ContextFavorite[]) ?? []).map((f) => ({ ...f, book_name: nameFor(orderMap, f.book_id) }));
 }
 
 export async function getAllUserProgress(userId: string): Promise<(ReadingProgress & WithBookName)[]> {
