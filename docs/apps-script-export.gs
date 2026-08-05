@@ -32,6 +32,15 @@
  * exportación selectiva (columna "Exportar"): en la primera sincronización completa, sin
  * esa columna, un título vacío simplemente se ignora (no borra nada), para no arrasar por
  * accidente con miles de filas vacías la primera vez.
+ *
+ * Temas de capítulo: agrega una columna "Temas" en "Contextos", con etiquetas separadas
+ * por espacio o coma (con # o sin #), ej. "#Creación #DignidadHumana #Orden". Cada una se
+ * sincroniza como un Tema de la app (los crea si no existen) y se aplica a TODOS los
+ * versículos del capítulo (así aparecen al usar el botón 🏷️ o en la pestaña Temas). Con la
+ * columna "Exportar": marcar una fila reemplaza por completo los temas de ese capítulo por
+ * los que estén en el Sheet en ese momento (dejar "Temas" vacío en una fila marcada quita
+ * todos sus temas). Sin esa columna (primera sincronización completa), solo se agregan los
+ * temas que sí tengan texto, sin borrar nada, por la misma razón que con los títulos.
  */
 
 function onOpen() {
@@ -59,10 +68,11 @@ function exportarASupabase() {
   const contextosCount = exportarContextos_(url, key, bookIdMap);
   const versiculosCount = exportarVersiculos_(url, key, bookIdMap, chapterIdMap);
   const titulosCount = exportarTitulosSeccion_(url, key, bookIdMap);
+  const temasCount = exportarTemasContexto_(url, key, bookIdMap);
 
   SpreadsheetApp.getUi().alert(
     `Exportación completa.\nContextos actualizados: ${contextosCount}\nVersículos actualizados: ${versiculosCount}` +
-      `\nTítulos de sección actualizados: ${titulosCount}`
+      `\nTítulos de sección actualizados: ${titulosCount}\nCapítulos con temas actualizados: ${temasCount}`
   );
 }
 
@@ -282,4 +292,145 @@ function exportarTitulosSeccion_(url, key, bookIdMap) {
   const upsertCount = upsert_(url, key, "section_titles", upsertRows, "book_id,chapter_number,verse_number");
   const deleteCount = deleteByKeys_(url, key, "section_titles", deleteKeys);
   return upsertCount + deleteCount;
+}
+
+// Debe dar el mismo resultado que slugifyTopic() en src/lib/actions/topics.ts, para que un
+// tema creado desde el Sheet coincida con uno ya creado desde la app (y no se dupliquen).
+function slugifyTopic_(name) {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
+// Separa "#Creación #DignidadHumana, Orden" en ["Creación", "DignidadHumana", "Orden"],
+// sin duplicados (comparando por slug, no por texto exacto).
+function parseHashtags_(raw) {
+  if (!raw) return [];
+  const vistos = {};
+  const out = [];
+  String(raw).split(/[,\s]+/).forEach((pieza) => {
+    const tag = pieza.trim().replace(/^#/, "");
+    if (!tag) return;
+    const slug = slugifyTopic_(tag);
+    if (vistos[slug]) return;
+    vistos[slug] = true;
+    out.push(tag);
+  });
+  return out;
+}
+
+// Trae los temas existentes y crea los que falten. Devuelve un mapa slug -> id.
+// "nombresPorSlug" es un objeto { slug: "Nombre tal como se escribió" }.
+function fetchOrCreateTopicIds_(url, key, nombresPorSlug) {
+  const res = UrlFetchApp.fetch(`${url}/rest/v1/topics?select=id,slug`, {
+    headers: Object.assign({ Range: "0-4999" }, SUPABASE_HEADERS_(key)),
+    muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() >= 300) throw new Error(`Error al leer topics: ${res.getContentText()}`);
+  const map = {};
+  JSON.parse(res.getContentText()).forEach((t) => (map[t.slug] = t.id));
+
+  Object.keys(nombresPorSlug).forEach((slug) => {
+    if (map[slug]) return;
+    const nombre = nombresPorSlug[slug];
+    const creado = UrlFetchApp.fetch(`${url}/rest/v1/topics`, {
+      method: "post",
+      contentType: "application/json",
+      headers: Object.assign({ Prefer: "return=representation" }, SUPABASE_HEADERS_(key)),
+      payload: JSON.stringify({ name: nombre, slug: slug }),
+      muteHttpExceptions: true,
+    });
+    if (creado.getResponseCode() < 300) {
+      map[slug] = JSON.parse(creado.getContentText())[0].id;
+      return;
+    }
+    // Probablemente ya existia (carrera con otra corrida) -- se busca de nuevo por slug.
+    const reintento = UrlFetchApp.fetch(`${url}/rest/v1/topics?select=id&slug=eq.${encodeURIComponent(slug)}`, {
+      headers: SUPABASE_HEADERS_(key),
+      muteHttpExceptions: true,
+    });
+    const filas = JSON.parse(reintento.getContentText());
+    if (filas.length) {
+      map[slug] = filas[0].id;
+    } else {
+      throw new Error(`No se pudo crear ni encontrar el tema "${nombre}": ${creado.getContentText()}`);
+    }
+  });
+  return map;
+}
+
+function getMaxVerseNumber_(url, key, bookId, chapterNumber) {
+  const res = UrlFetchApp.fetch(
+    `${url}/rest/v1/verses?select=verse_number&book_id=eq.${bookId}&chapter_number=eq.${chapterNumber}` +
+      `&order=verse_number.desc&limit=1`,
+    { headers: SUPABASE_HEADERS_(key), muteHttpExceptions: true }
+  );
+  if (res.getResponseCode() >= 300) throw new Error(`Error al leer verses: ${res.getContentText()}`);
+  const filas = JSON.parse(res.getContentText());
+  return filas.length ? filas[0].verse_number : 0;
+}
+
+function deleteChapterTopics_(url, key, bookId, chapterNumber) {
+  const res = UrlFetchApp.fetch(
+    `${url}/rest/v1/verse_topics?book_id=eq.${bookId}&chapter_number=eq.${chapterNumber}`,
+    { method: "delete", headers: SUPABASE_HEADERS_(key), muteHttpExceptions: true }
+  );
+  if (res.getResponseCode() >= 300) throw new Error(`Error al borrar verse_topics: ${res.getContentText()}`);
+}
+
+function exportarTemasContexto_(url, key, bookIdMap) {
+  const todas = sheetToObjects_("Contextos");
+  if (todas.length === 0 || !Object.prototype.hasOwnProperty.call(todas[0], "Temas")) return 0;
+  const modoSelectivo = Object.prototype.hasOwnProperty.call(todas[0], MARCA_COLUMNA_);
+  const seleccionadas = filtrarMarcadas_(todas);
+
+  const parseadas = seleccionadas
+    .map((r) => {
+      const bookId = bookIdMap[String(r["Libro"]).trim().toLowerCase()];
+      if (!bookId || !r["Capitulo"]) return null;
+      return { bookId: bookId, chapterNumber: Number(r["Capitulo"]), tags: parseHashtags_(r["Temas"]) };
+    })
+    .filter(Boolean);
+
+  // Se juntan todas las etiquetas nuevas de una sola vez, para no crear "topics"
+  // duplicados si la misma etiqueta aparece en varios capitulos de este envio.
+  const nombresPorSlug = {};
+  parseadas.forEach((p) => p.tags.forEach((t) => (nombresPorSlug[slugifyTopic_(t)] = nombresPorSlug[slugifyTopic_(t)] || t)));
+  const topicIdBySlug = Object.keys(nombresPorSlug).length ? fetchOrCreateTopicIds_(url, key, nombresPorSlug) : {};
+
+  let count = 0;
+  parseadas.forEach((p) => {
+    if (p.tags.length === 0) {
+      // Sin la columna "Exportar" no se borra nada (la mayoria de capitulos no tiene
+      // "Temas" todavia); con esa columna, una fila marcada y vacia SI quita sus temas.
+      if (modoSelectivo) {
+        deleteChapterTopics_(url, key, p.bookId, p.chapterNumber);
+        count++;
+      }
+      return;
+    }
+    if (modoSelectivo) {
+      // Reemplazo total: se borra lo que tuviera este capitulo y se ponen solo los
+      // temas que estan ahora en el Sheet (asi quitar una etiqueta del Sheet la quita
+      // tambien de la app, igual que con los titulos de seccion).
+      deleteChapterTopics_(url, key, p.bookId, p.chapterNumber);
+    }
+    const maxVerse = getMaxVerseNumber_(url, key, p.bookId, p.chapterNumber);
+    if (!maxVerse) return;
+    const rows = [];
+    p.tags.forEach((t) => {
+      const topicId = topicIdBySlug[slugifyTopic_(t)];
+      if (!topicId) return;
+      for (let v = 1; v <= maxVerse; v++) {
+        rows.push({ topic_id: topicId, book_id: p.bookId, chapter_number: p.chapterNumber, verse_number: v });
+      }
+    });
+    upsert_(url, key, "verse_topics", rows, "topic_id,book_id,chapter_number,verse_number");
+    count++;
+  });
+  return count;
 }
