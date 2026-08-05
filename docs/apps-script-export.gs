@@ -47,8 +47,39 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("Biblia Estudio")
     .addItem("Exportar a Supabase", "exportarASupabase")
+    .addItem("Marcar en Contextos: filas con Temas sin exportar", "marcarFilasConTemas")
     .addItem("Diagnóstico: Temas de Contextos", "diagnosticoTemas")
     .addToUi();
+}
+
+// Ayuda para el caso de "ya escribi Temas en muchas filas pero se me olvido marcar
+// Exportar en cada una": marca la casilla "Exportar" de toda fila en "Contextos" que
+// tenga algo escrito en "Temas" y que todavia no este marcada. No toca las demas filas.
+function marcarFilasConTemas() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("Contextos");
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const colTemas = headers.indexOf("Temas");
+  const colExportar = headers.indexOf(MARCA_COLUMNA_);
+  if (colTemas === -1 || colExportar === -1) {
+    SpreadsheetApp.getUi().alert('Hace falta que "Contextos" tenga las columnas "Temas" y "Exportar".');
+    return;
+  }
+
+  const lastRow = sheet.getLastRow();
+  const temasValues = sheet.getRange(2, colTemas + 1, lastRow - 1, 1).getValues();
+  const exportarRange = sheet.getRange(2, colExportar + 1, lastRow - 1, 1);
+  const exportarValues = exportarRange.getValues();
+
+  let marcadas = 0;
+  for (let i = 0; i < temasValues.length; i++) {
+    const tieneTemas = String(temasValues[i][0] || "").trim() !== "";
+    if (tieneTemas && exportarValues[i][0] !== true) {
+      exportarValues[i][0] = true;
+      marcadas++;
+    }
+  }
+  exportarRange.setValues(exportarValues);
+  SpreadsheetApp.getUi().alert(`Se marcó "Exportar" en ${marcadas} fila(s) con Temas pendientes.`);
 }
 
 // Temporal: ayuda a ver exactamente qué está leyendo el script de la hoja "Contextos"
