@@ -26,8 +26,12 @@
  *
  * Títulos de sección: agrega una columna "Titulo_Seccion" en "Versiculos". Si esa columna
  * tiene texto en la fila de un versículo, ese texto se sincroniza como título de sección
- * (aparece ANTES de ese versículo en la app, como en las biblias impresas). Dejar la celda
- * vacía no borra un título ya existente en la app — para quitarlo, bórralo desde la app.
+ * (aparece ANTES de ese versículo en la app, como en las biblias impresas). Si marcas una
+ * fila con "Exportar" y dejas "Titulo_Seccion" vacío, el título de ese versículo se BORRA
+ * de la app (así puedes quitar uno editando el Sheet). Esto solo aplica en el modo de
+ * exportación selectiva (columna "Exportar"): en la primera sincronización completa, sin
+ * esa columna, un título vacío simplemente se ignora (no borra nada), para no arrasar por
+ * accidente con miles de filas vacías la primera vez.
  */
 
 function onOpen() {
@@ -168,6 +172,29 @@ function upsert_(url, key, table, rows, onConflict) {
   return rows.length;
 }
 
+// Igual que upsert_ pero para borrar por lotes usando un filtro "or" de PostgREST, en vez
+// de un DELETE por fila (que para cientos de filas sería demasiado lento/riesgoso).
+const DELETE_BATCH_SIZE = 50;
+
+function deleteByKeys_(url, key, table, keys) {
+  if (keys.length === 0) return 0;
+  for (let i = 0; i < keys.length; i += DELETE_BATCH_SIZE) {
+    const batch = keys.slice(i, i + DELETE_BATCH_SIZE);
+    const orFilter = batch
+      .map((k) => `and(book_id.eq.${k.book_id},chapter_number.eq.${k.chapter_number},verse_number.eq.${k.verse_number})`)
+      .join(",");
+    const res = UrlFetchApp.fetch(`${url}/rest/v1/${table}?or=(${orFilter})`, {
+      method: "delete",
+      headers: SUPABASE_HEADERS_(key),
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() >= 300) {
+      throw new Error(`Error al borrar en ${table}: ${res.getContentText()}`);
+    }
+  }
+  return keys.length;
+}
+
 function exportarContextos_(url, key, bookIdMap) {
   const seleccionadas = filtrarMarcadas_(sheetToObjects_("Contextos"));
   const sheetRows = [];
@@ -224,21 +251,35 @@ function exportarVersiculos_(url, key, bookIdMap, chapterIdMap) {
 
 // Lee la misma hoja "Versiculos" buscando la columna "Titulo_Seccion". No desmarca la
 // casilla "Exportar" (ya lo hace exportarVersiculos_ para las mismas filas).
+//
+// Un titulo vacio en una fila MARCADA borra el titulo existente de ese versiculo (para
+// poder quitarlos editando el Sheet). Eso solo aplica en modo selectivo (columna
+// "Exportar" presente); sin esa columna, todas las filas cuentan como "seleccionadas" y
+// la enorme mayoria no tiene titulo -- borrar en masa ahi seria lento e innecesario.
 function exportarTitulosSeccion_(url, key, bookIdMap) {
-  const seleccionadas = filtrarMarcadas_(sheetToObjects_("Versiculos"));
-  const rows = seleccionadas
-    .map((r) => {
-      const titulo = String(r["Titulo_Seccion"] || "").trim();
-      if (!titulo) return null;
-      const bookId = bookIdMap[String(r["Libro"]).trim().toLowerCase()];
-      if (!bookId || !r["Capitulo"] || !r["Numero_Versiculo"]) return null;
-      return {
-        book_id: bookId,
-        chapter_number: Number(r["Capitulo"]),
-        verse_number: Number(r["Numero_Versiculo"]),
-        title: titulo,
-      };
-    })
-    .filter(Boolean);
-  return upsert_(url, key, "section_titles", rows, "book_id,chapter_number,verse_number");
+  const todas = sheetToObjects_("Versiculos");
+  const modoSelectivo = todas.length > 0 && Object.prototype.hasOwnProperty.call(todas[0], MARCA_COLUMNA_);
+  const seleccionadas = filtrarMarcadas_(todas);
+
+  const upsertRows = [];
+  const deleteKeys = [];
+  seleccionadas.forEach((r) => {
+    const bookId = bookIdMap[String(r["Libro"]).trim().toLowerCase()];
+    if (!bookId || !r["Capitulo"] || !r["Numero_Versiculo"]) return;
+    const pk = {
+      book_id: bookId,
+      chapter_number: Number(r["Capitulo"]),
+      verse_number: Number(r["Numero_Versiculo"]),
+    };
+    const titulo = String(r["Titulo_Seccion"] || "").trim();
+    if (titulo) {
+      upsertRows.push(Object.assign({ title: titulo }, pk));
+    } else if (modoSelectivo) {
+      deleteKeys.push(pk);
+    }
+  });
+
+  const upsertCount = upsert_(url, key, "section_titles", upsertRows, "book_id,chapter_number,verse_number");
+  const deleteCount = deleteByKeys_(url, key, "section_titles", deleteKeys);
+  return upsertCount + deleteCount;
 }
