@@ -47,7 +47,40 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("Biblia Estudio")
     .addItem("Exportar a Supabase", "exportarASupabase")
+    .addItem("Diagnóstico: Temas de Contextos", "diagnosticoTemas")
     .addToUi();
+}
+
+// Temporal: ayuda a ver exactamente qué está leyendo el script de la hoja "Contextos"
+// (encabezados exactos y el contenido crudo de "Temas" en la primera fila que lo tenga),
+// sin tocar Supabase. Util para diagnosticar por que una fila no sincroniza sus temas.
+function diagnosticoTemas() {
+  const todas = sheetToObjects_("Contextos");
+  if (todas.length === 0) {
+    SpreadsheetApp.getUi().alert('La hoja "Contextos" no tiene filas con datos.');
+    return;
+  }
+  const headers = Object.keys(todas[0]).filter((h) => h !== "_row");
+  const tieneTemas = Object.prototype.hasOwnProperty.call(todas[0], "Temas");
+  const tieneExportar = Object.prototype.hasOwnProperty.call(todas[0], MARCA_COLUMNA_);
+
+  const conTemas = todas.filter((r) => String(r["Temas"] || "").trim() !== "");
+  let detalle = "";
+  conTemas.slice(0, 5).forEach((r) => {
+    detalle +=
+      `\nFila ${r._row}: Libro="${r["Libro"]}" Capitulo="${r["Capitulo"]}"` +
+      (tieneExportar ? ` Exportar=${r[MARCA_COLUMNA_]}` : "") +
+      `\n  Temas="${r["Temas"]}"`;
+  });
+  if (conTemas.length === 0) detalle = "\n(Ninguna fila tiene algo escrito en \"Temas\" ahorita mismo)";
+
+  SpreadsheetApp.getUi().alert(
+    `Encabezados encontrados: ${headers.join(", ")}\n\n` +
+      `¿Existe columna "Temas"?: ${tieneTemas}\n` +
+      `¿Existe columna "Exportar"?: ${tieneExportar}\n` +
+      `Filas con "Temas" no vacío: ${conTemas.length}` +
+      detalle
+  );
 }
 
 function exportarASupabase() {

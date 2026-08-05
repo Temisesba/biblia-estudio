@@ -3,6 +3,7 @@
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Star } from "lucide-react";
 import type { ChapterContext, ContextHighlight, ContextFavorite } from "@/types/database";
 import { saveChapterContext } from "@/lib/actions/context";
@@ -48,6 +49,7 @@ export function ContextPanel({
   favorites,
   isAdmin,
   jumpToField,
+  topics,
 }: {
   bookId: number;
   bookOrder: number;
@@ -57,6 +59,7 @@ export function ContextPanel({
   favorites: ContextFavorite[];
   isAdmin: boolean;
   jumpToField?: { key: string; token: number } | null;
+  topics: { topicName: string; topicSlug: string }[];
 }) {
   const [editing, setEditing] = useState(false);
   const [innerTab, setInnerTab] = useState<InnerTab>("desglose");
@@ -454,6 +457,23 @@ export function ContextPanel({
               {DESGLOSE_FIELDS.every((f) => !context?.[f.key]) && (
                 <p className="py-4 text-sm text-foreground/50">Aún no hay desglose para este capítulo.</p>
               )}
+            </div>
+          )}
+
+          {topics.length > 0 && (
+            <div className="mt-2 border-t border-border pt-4">
+              <h3 className="mb-2 text-sm font-semibold text-foreground/60">Temas de este capítulo</h3>
+              <div className="flex flex-wrap gap-2">
+                {topics.map((t) => (
+                  <Link
+                    key={t.topicSlug}
+                    href={`/temas/${t.topicSlug}`}
+                    className="rounded-full bg-primary/15 px-3 py-1 text-xs font-medium text-primary hover:bg-primary/25"
+                  >
+                    #{t.topicName}
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
         </>

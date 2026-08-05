@@ -71,6 +71,12 @@ export function ChapterReader(props: {
   const [searchOpen, setSearchOpen] = useState(false);
   const [chapterQuery, setChapterQuery] = useState("");
 
+  // "Temas" en Contexto es a nivel de capitulo, pero se guarda como una etiqueta en cada
+  // versiculo del capitulo -- se deduplica por slug para mostrar la lista una sola vez.
+  const chapterTopicsList = Object.values(props.chapterTopics)
+    .flat()
+    .filter((t, i, arr) => arr.findIndex((x) => x.topicSlug === t.topicSlug) === i);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -182,6 +188,7 @@ export function ChapterReader(props: {
           favorites={props.contextFavorites}
           isAdmin={props.isAdmin}
           jumpToField={jumpField}
+          topics={chapterTopicsList}
         />
       )}
       {tab === "notas" && (
