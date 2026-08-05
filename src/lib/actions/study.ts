@@ -270,33 +270,41 @@ export async function removeLastReadingEvent(bookOrder: number, chapterNumber: n
   revalidatePath("/progreso");
 }
 
-// Permite corregir la fecha de "primera lectura" (la que ancla el capitulo en el
-// calendario de Progreso). Edita el evento mas antiguo (no solo el agregado en cache),
-// para que la proxima vez que se recalcule desde reading_events no se pierda el cambio.
-export async function updateReadingProgressDate(bookOrder: number, chapterNumber: number, isoDate: string) {
+// Corrige la fecha/hora de una lectura puntual del historial (input datetime-local,
+// ej. "2026-08-04T14:30" en hora local del navegador).
+export async function updateReadingEventDate(
+  id: string,
+  bookOrder: number,
+  chapterNumber: number,
+  localDateTime: string
+) {
   const { supabase, userId } = await requireUser();
   const bookId = await resolveBookId(bookOrder);
-  const date = new Date(`${isoDate}T12:00:00`);
+  const date = new Date(localDateTime);
   if (Number.isNaN(date.getTime())) throw new Error("Fecha invalida");
 
-  const { data: first } = await supabase
+  const { error } = await supabase
     .from("reading_events")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("book_id", bookId)
-    .eq("chapter_number", chapterNumber)
-    .order("read_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (first) {
-    const { error } = await supabase
-      .from("reading_events")
-      .update({ read_at: date.toISOString() })
-      .eq("id", first.id);
-    if (error) throw new Error(error.message);
-  }
+    .update({ read_at: date.toISOString() })
+    .eq("id", id)
+    .eq("user_id", userId);
+  if (error) throw new Error(error.message);
   await recomputeReadingProgress(supabase, userId, bookId, chapterNumber);
 
   revalidatePath(chapterPath(bookOrder, chapterNumber));
+  revalidatePath("/progreso");
+}
+
+// Elimina una lectura puntual del historial (no necesariamente la ultima).
+export async function deleteReadingEvent(id: string, bookOrder: number, chapterNumber: number) {
+  const { supabase, userId } = await requireUser();
+  const bookId = await resolveBookId(bookOrder);
+
+  const { error } = await supabase.from("reading_events").delete().eq("id", id).eq("user_id", userId);
+  if (error) throw new Error(error.message);
+  await recomputeReadingProgress(supabase, userId, bookId, chapterNumber);
+
+  revalidatePath(chapterPath(bookOrder, chapterNumber));
+  revalidatePath("/mi-estudio");
   revalidatePath("/progreso");
 }

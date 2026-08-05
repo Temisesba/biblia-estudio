@@ -23,6 +23,11 @@
  * "Exportar" en "Contextos" y/o "Versiculos" (Insertar > Casilla de verificación), el
  * script solo sincroniza las filas marcadas y las desmarca solo al terminar con éxito.
  * Si esa columna no existe, se sincroniza la hoja completa (como en la primera vez).
+ *
+ * Títulos de sección: agrega una columna "Titulo_Seccion" en "Versiculos". Si esa columna
+ * tiene texto en la fila de un versículo, ese texto se sincroniza como título de sección
+ * (aparece ANTES de ese versículo en la app, como en las biblias impresas). Dejar la celda
+ * vacía no borra un título ya existente en la app — para quitarlo, bórralo desde la app.
  */
 
 function onOpen() {
@@ -49,9 +54,11 @@ function exportarASupabase() {
   const chapterIdMap = fetchChapterIdMap_(url, key);
   const contextosCount = exportarContextos_(url, key, bookIdMap);
   const versiculosCount = exportarVersiculos_(url, key, bookIdMap, chapterIdMap);
+  const titulosCount = exportarTitulosSeccion_(url, key, bookIdMap);
 
   SpreadsheetApp.getUi().alert(
-    `Exportación completa.\nContextos actualizados: ${contextosCount}\nVersículos actualizados: ${versiculosCount}`
+    `Exportación completa.\nContextos actualizados: ${contextosCount}\nVersículos actualizados: ${versiculosCount}` +
+      `\nTítulos de sección actualizados: ${titulosCount}`
   );
 }
 
@@ -213,4 +220,25 @@ function exportarVersiculos_(url, key, bookIdMap, chapterIdMap) {
   const count = upsert_(url, key, "verses", rows, "book_id,chapter_number,verse_number,version");
   desmarcarFilas_("Versiculos", sheetRows);
   return count;
+}
+
+// Lee la misma hoja "Versiculos" buscando la columna "Titulo_Seccion". No desmarca la
+// casilla "Exportar" (ya lo hace exportarVersiculos_ para las mismas filas).
+function exportarTitulosSeccion_(url, key, bookIdMap) {
+  const seleccionadas = filtrarMarcadas_(sheetToObjects_("Versiculos"));
+  const rows = seleccionadas
+    .map((r) => {
+      const titulo = String(r["Titulo_Seccion"] || "").trim();
+      if (!titulo) return null;
+      const bookId = bookIdMap[String(r["Libro"]).trim().toLowerCase()];
+      if (!bookId || !r["Capitulo"] || !r["Numero_Versiculo"]) return null;
+      return {
+        book_id: bookId,
+        chapter_number: Number(r["Capitulo"]),
+        verse_number: Number(r["Numero_Versiculo"]),
+        title: titulo,
+      };
+    })
+    .filter(Boolean);
+  return upsert_(url, key, "section_titles", rows, "book_id,chapter_number,verse_number");
 }

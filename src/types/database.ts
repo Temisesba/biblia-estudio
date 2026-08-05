@@ -201,6 +201,14 @@ export interface ReadingProgress {
   last_read_at: string | null;
 }
 
+export interface ReadingEvent {
+  id: string;
+  user_id: string;
+  book_id: number;
+  chapter_number: number;
+  read_at: string;
+}
+
 export interface ReadingPlan {
   id: string;
   name: string;

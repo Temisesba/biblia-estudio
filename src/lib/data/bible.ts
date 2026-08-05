@@ -9,6 +9,7 @@ import type {
   Note,
   Favorite,
   ReadingProgress,
+  ReadingEvent,
   PublicAnnotation,
   SectionTitle,
   ContextHighlight,
@@ -216,6 +217,22 @@ export async function getUserChapterProgress(
     .eq("chapter_number", chapterNumber)
     .maybeSingle();
   return (data as ReadingProgress) ?? null;
+}
+
+export async function getChapterReadingEvents(
+  userId: string,
+  bookId: number,
+  chapterNumber: number
+): Promise<ReadingEvent[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("reading_events")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("book_id", bookId)
+    .eq("chapter_number", chapterNumber)
+    .order("read_at", { ascending: false });
+  return (data as ReadingEvent[]) ?? [];
 }
 
 export async function getReadChaptersMap(userId: string): Promise<Record<number, number[]>> {

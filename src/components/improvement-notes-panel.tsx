@@ -3,6 +3,7 @@
 import { useOptimistic, useState, useTransition } from "react";
 import type { AdminImprovementNote } from "@/types/database";
 import { addImprovementNote, deleteImprovementNote } from "@/lib/actions/admin";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
 export function ImprovementNotesPanel({ notes }: { notes: AdminImprovementNote[] }) {
   const [text, setText] = useState("");
@@ -74,12 +75,7 @@ export function ImprovementNotesPanel({ notes }: { notes: AdminImprovementNote[]
                   {new Date(n.created_at).toLocaleDateString("es-MX")}
                 </p>
               </div>
-              <button
-                onClick={() => remove(n.id)}
-                className="shrink-0 text-xs text-red-500 hover:underline"
-              >
-                Eliminar
-              </button>
+              <ConfirmDeleteButton onConfirm={() => remove(n.id)} />
             </li>
           ))}
         </ul>

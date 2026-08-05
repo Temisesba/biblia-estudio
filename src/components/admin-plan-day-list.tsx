@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { deletePlanDay } from "@/lib/actions/reading-plans";
 import type { PlanDayDetail } from "@/lib/data/reading-plans";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
 export function AdminPlanDayList({ planId, days }: { planId: string; days: PlanDayDetail[] }) {
   const [pending, startTransition] = useTransition();
@@ -19,13 +20,10 @@ export function AdminPlanDayList({ planId, days }: { planId: string; days: PlanD
             <span className="mr-2 text-foreground/40">{i + 1}.</span>
             {d.bookName} {d.chapterNumber}
           </span>
-          <button
-            disabled={pending}
-            onClick={() => startTransition(() => deletePlanDay(d.id, planId))}
+          <ConfirmDeleteButton
+            onConfirm={() => startTransition(() => deletePlanDay(d.id, planId))}
             className="text-xs text-red-500 hover:underline disabled:opacity-50"
-          >
-            Eliminar
-          </button>
+          />
         </li>
       ))}
     </ul>

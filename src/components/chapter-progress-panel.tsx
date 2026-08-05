@@ -1,25 +1,32 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import type { ReadingProgress } from "@/types/database";
-import { markChapterRead, removeLastReadingEvent, updateReadingProgressDate } from "@/lib/actions/study";
+import { useOptimistic, useState, useTransition } from "react";
+import type { ReadingProgress, ReadingEvent } from "@/types/database";
+import { markChapterRead, removeLastReadingEvent, updateReadingEventDate, deleteReadingEvent } from "@/lib/actions/study";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
-function toDateInputValue(iso: string) {
-  return new Date(iso).toISOString().slice(0, 10);
+function toDateTimeInputValue(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export function ChapterProgressPanel({
   bookOrder,
   chapterNumber,
   progress,
+  readingEvents,
 }: {
   bookOrder: number;
   chapterNumber: number;
   progress: ReadingProgress | null;
+  readingEvents: ReadingEvent[];
 }) {
   const [pending, startTransition] = useTransition();
-  const [editingDate, setEditingDate] = useState(false);
-  const [dateDraft, setDateDraft] = useState(progress?.first_read_at ? toDateInputValue(progress.first_read_at) : "");
+  const [optimisticEvents, removeOptimisticEvent] = useOptimistic<ReadingEvent[], string>(
+    readingEvents,
+    (state, id) => state.filter((e) => e.id !== id)
+  );
   const done = progress?.status === "terminado" && !!progress?.last_read_at;
 
   function markFirstRead() {
@@ -34,11 +41,10 @@ export function ChapterProgressPanel({
     startTransition(() => markChapterRead(bookOrder, chapterNumber));
   }
 
-  function saveDate() {
-    if (!dateDraft) return;
+  function deleteEvent(id: string) {
     startTransition(async () => {
-      await updateReadingProgressDate(bookOrder, chapterNumber, dateDraft);
-      setEditingDate(false);
+      removeOptimisticEvent(id);
+      await deleteReadingEvent(id, bookOrder, chapterNumber);
     });
   }
 
@@ -56,7 +62,7 @@ export function ChapterProgressPanel({
                 className="h-5 w-5 accent-[var(--primary)]"
               />
               <span className="font-medium">
-                Leído última vez: {new Date(progress!.last_read_at as string).toLocaleDateString("es-MX")}
+                Leído última vez: {new Date(progress!.last_read_at as string).toLocaleString("es-MX")}
               </span>
             </label>
             <button
@@ -82,53 +88,89 @@ export function ChapterProgressPanel({
         )}
       </div>
 
-      <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-2">
         <Stat label="Estado" value={statusLabel(progress?.status)} />
         <Stat label="Veces leído" value={String(progress?.times_read ?? 0)} />
-        <div className="rounded-md bg-muted p-3">
-          <dt className="text-xs text-foreground/50">Primera lectura</dt>
-          {editingDate ? (
-            <div className="mt-1 flex items-center gap-1.5">
-              <input
-                type="date"
-                value={dateDraft}
-                onChange={(e) => setDateDraft(e.target.value)}
-                className="w-full rounded border border-border bg-background px-1.5 py-1 text-xs outline-none focus:border-primary"
-              />
-              <button
-                onClick={saveDate}
-                disabled={pending}
-                className="shrink-0 rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
-              >
-                Guardar
-              </button>
-              <button
-                onClick={() => setEditingDate(false)}
-                className="shrink-0 text-xs text-foreground/50 hover:underline"
-              >
-                Cancelar
-              </button>
-            </div>
-          ) : (
-            <dd className="flex items-center gap-2 font-semibold">
-              {progress?.first_read_at ? new Date(progress.first_read_at).toLocaleDateString("es-MX") : "—"}
-              {progress?.first_read_at && (
-                <button
-                  onClick={() => {
-                    setDateDraft(toDateInputValue(progress.first_read_at as string));
-                    setEditingDate(true);
-                  }}
-                  title="Corregir fecha"
-                  className="text-xs font-normal text-primary hover:underline"
-                >
-                  editar
-                </button>
-              )}
-            </dd>
-          )}
-        </div>
       </dl>
+
+      <section>
+        <h3 className="mb-2 text-sm font-semibold">Historial de lecturas ({optimisticEvents.length})</h3>
+        {optimisticEvents.length === 0 ? (
+          <p className="text-sm text-foreground/50">Todavía no hay lecturas registradas para este capítulo.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {optimisticEvents.map((ev) => (
+              <ReadingEventRow
+                key={ev.id}
+                event={ev}
+                bookOrder={bookOrder}
+                chapterNumber={chapterNumber}
+                onDelete={() => deleteEvent(ev.id)}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
+  );
+}
+
+function ReadingEventRow({
+  event,
+  bookOrder,
+  chapterNumber,
+  onDelete,
+}: {
+  event: ReadingEvent;
+  bookOrder: number;
+  chapterNumber: number;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(toDateTimeInputValue(event.read_at));
+  const [pending, startTransition] = useTransition();
+
+  function save() {
+    if (!draft) return;
+    startTransition(async () => {
+      await updateReadingEventDate(event.id, bookOrder, chapterNumber, draft);
+      setEditing(false);
+    });
+  }
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-2.5 text-sm">
+      {editing ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <input
+            type="datetime-local"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="rounded border border-border bg-background px-1.5 py-1 text-xs outline-none focus:border-primary"
+          />
+          <button
+            onClick={save}
+            disabled={pending}
+            className="rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+          >
+            Guardar
+          </button>
+          <button onClick={() => setEditing(false)} className="text-xs text-foreground/50 hover:underline">
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <>
+          <span>{new Date(event.read_at).toLocaleString("es-MX")}</span>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setEditing(true)} className="text-xs text-primary hover:underline">
+              Editar
+            </button>
+            <ConfirmDeleteButton onConfirm={onDelete} />
+          </div>
+        </>
+      )}
+    </li>
   );
 }
 

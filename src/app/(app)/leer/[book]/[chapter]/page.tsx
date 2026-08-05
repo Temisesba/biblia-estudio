@@ -9,6 +9,7 @@ import {
   getUserNotes,
   getUserFavorites,
   getUserChapterProgress,
+  getChapterReadingEvents,
   getReadChaptersMap,
   getPublicAnnotations,
   getContextHighlights,
@@ -43,6 +44,7 @@ export default async function ChapterPage({
     notes,
     favorites,
     progress,
+    readingEvents,
     readChapters,
     publicAnnotations,
     chapterTopics,
@@ -59,6 +61,7 @@ export default async function ChapterPage({
     getUserNotes(profile.id, book.id, chapterNumber),
     getUserFavorites(profile.id, book.id, chapterNumber),
     getUserChapterProgress(profile.id, book.id, chapterNumber),
+    getChapterReadingEvents(profile.id, book.id, chapterNumber),
     getReadChaptersMap(profile.id),
     getPublicAnnotations(book.id, chapterNumber),
     getChapterTopics(book.id, chapterNumber),
@@ -103,6 +106,7 @@ export default async function ChapterPage({
       notes={notes}
       favorites={favorites}
       progress={progress}
+      readingEvents={readingEvents}
       readChapters={readChapters}
       publicAnnotations={publicAnnotations}
       chapterTopics={chapterTopics}

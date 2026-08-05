@@ -15,6 +15,7 @@ import type {
   Note,
   Favorite,
   ReadingProgress,
+  ReadingEvent,
   ChapterContext,
   PublicAnnotation,
   Topic,
@@ -46,6 +47,7 @@ export function ChapterReader(props: {
   notes: Note[];
   favorites: Favorite[];
   progress: ReadingProgress | null;
+  readingEvents: ReadingEvent[];
   readChapters: Record<number, number[]>;
   publicAnnotations: PublicAnnotation[];
   chapterTopics: ChapterTopicsMap;
@@ -207,6 +209,7 @@ export function ChapterReader(props: {
           bookOrder={props.bookOrder}
           chapterNumber={props.chapterNumber}
           progress={props.progress}
+          readingEvents={props.readingEvents}
         />
       )}
     </div>

@@ -8,6 +8,7 @@ import { createNote, updateNote, deleteNote, deleteHighlight } from "@/lib/actio
 import { deleteContextHighlight, toggleContextFavorite } from "@/lib/actions/context-study";
 import { parseTagsInput } from "@/components/verse-list";
 import { contextFieldLabel } from "@/lib/context-fields";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
 export function ChapterNotesPanel({
   bookId,
@@ -353,42 +354,5 @@ function HighlightItem({
       </button>
       <ConfirmDeleteButton onConfirm={onDelete} />
     </li>
-  );
-}
-
-// Antes "Eliminar" borraba al primer clic, sin avisar ni dar ninguna señal visual de que
-// el clic registró — con la latencia de red parecía que la app no habia hecho nada. Ahora
-// el primer clic cambia a un estado "¿Seguro?" en rojo (feedback inmediato) y solo borra
-// hasta el segundo clic.
-function ConfirmDeleteButton({ onConfirm }: { onConfirm: () => void }) {
-  const [confirming, setConfirming] = useState(false);
-
-  if (confirming) {
-    return (
-      <span className="inline-flex shrink-0 items-center gap-2 text-xs">
-        <span className="text-foreground/60">¿Seguro?</span>
-        <button
-          onClick={() => {
-            setConfirming(false);
-            onConfirm();
-          }}
-          className="rounded bg-red-500 px-2 py-0.5 font-medium text-white"
-        >
-          Eliminar
-        </button>
-        <button onClick={() => setConfirming(false)} className="text-foreground/60 hover:underline">
-          Cancelar
-        </button>
-      </span>
-    );
-  }
-
-  return (
-    <button
-      onClick={() => setConfirming(true)}
-      className="shrink-0 text-xs text-red-500 hover:underline"
-    >
-      Eliminar
-    </button>
   );
 }

@@ -20,6 +20,7 @@ import type {
 import type { ChapterTopicsMap } from "@/lib/data/topics";
 import type { ChapterPersonalTopicsMap } from "@/lib/data/personal-topics";
 import { HIGHLIGHT_COLORS, DEFAULT_COLOR, UNDERLINE_COLOR } from "@/lib/highlight-colors";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import {
   createHighlight,
   deleteHighlight,
@@ -691,7 +692,7 @@ export function VerseList({
                 className="h-5 w-5 accent-[var(--primary)]"
               />
               <span className="font-medium">
-                Leído última vez: {new Date(progress.last_read_at).toLocaleDateString("es-MX")}
+                Leído última vez: {new Date(progress.last_read_at).toLocaleString("es-MX")}
               </span>
             </label>
             <button
@@ -838,13 +839,10 @@ export function VerseList({
             <div className="mt-3 flex justify-end gap-2">
               {isAdmin && !editingAnnotation && (
                 <>
-                  <button
-                    onClick={deleteAnnotation}
-                    disabled={pending}
+                  <ConfirmDeleteButton
+                    onConfirm={deleteAnnotation}
                     className="mr-auto text-sm text-red-500 hover:underline disabled:opacity-50"
-                  >
-                    Eliminar
-                  </button>
+                  />
                   <button
                     onClick={() => {
                       setAnnotationEditText(viewingAnnotation.note);
@@ -981,13 +979,11 @@ export function VerseList({
                     #{t.topicName}
                   </Link>
                   {isAdmin && (
-                    <button
-                      disabled={pending}
-                      onClick={() => removeVerseTopic(t.id)}
+                    <ConfirmDeleteButton
+                      label="Quitar"
+                      onConfirm={() => removeVerseTopic(t.id)}
                       className="text-xs text-red-500 hover:underline disabled:opacity-50"
-                    >
-                      Quitar
-                    </button>
+                    />
                   )}
                 </li>
               ))}
@@ -1065,13 +1061,11 @@ export function VerseList({
               {viewingVersePersonalTopics.topics.map((t) => (
                 <li key={t.id} className="flex items-center justify-between gap-2 rounded-md border border-border p-2 text-sm">
                   <span className="font-medium text-indigo-600 dark:text-indigo-400">#{t.topicName}</span>
-                  <button
-                    disabled={pending}
-                    onClick={() => removeVersePersonalTopic(t.id)}
+                  <ConfirmDeleteButton
+                    label="Quitar"
+                    onConfirm={() => removeVersePersonalTopic(t.id)}
                     className="text-xs text-red-500 hover:underline disabled:opacity-50"
-                  >
-                    Quitar
-                  </button>
+                  />
                 </li>
               ))}
             </ul>
