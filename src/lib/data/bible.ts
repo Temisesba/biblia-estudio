@@ -15,16 +15,35 @@ import type {
   ContextFavorite,
 } from "@/types/database";
 
+// La tabla "books" (66 filas) casi no cambia y es de lectura publica, pero se estaba
+// volviendo a pedir a Supabase en mas de una docena de lugares del codigo (solo "Mi
+// estudio" la pedia 6 veces por separado) — eso era gran parte de la lentitud al
+// cambiar de pestana. Se centraliza aqui con cache de 1 hora compartida entre todos
+// los usuarios, en vez de un viaje de red nuevo cada vez.
+// Nota: "order" es un parametro reservado en PostgREST (ORDER BY), asi que no se puede
+// filtrar con .eq("order", ...) sobre una columna llamada "order" — se trae la lista
+// completa y se filtra/mapea en JS.
+export const getBookOrderRows = unstable_cache(
+  async (): Promise<{ id: number; order: number }[]> => {
+    const supabase = createPublicClient();
+    const { data } = await supabase.from("books").select("id, order");
+    return (data ?? []) as { id: number; order: number }[];
+  },
+  ["book-order-rows"],
+  { revalidate: 3600 }
+);
+
+export async function getBookOrderMap(): Promise<Map<number, number>> {
+  const rows = await getBookOrderRows();
+  return new Map(rows.map((r) => [r.id, r.order]));
+}
+
 export async function resolveBook(slug: string) {
   const meta = getBookBySlug(slug);
   if (!meta) return null;
-  const supabase = await createClient();
-  // Nota: "order" es un parámetro reservado en PostgREST (ORDER BY), así que no
-  // se puede filtrar con .eq("order", ...) sobre una columna llamada "order" —
-  // se trae la lista completa (66 filas) y se filtra en JS.
-  const { data } = await supabase.from("books").select("id, order");
-  const row = (data ?? []).find((b) => b.order === meta.order);
-  return row ? { ...meta, id: row.id as number } : null;
+  const rows = await getBookOrderRows();
+  const row = rows.find((b) => b.order === meta.order);
+  return row ? { ...meta, id: row.id } : null;
 }
 
 // Cacheadas: el texto bíblico y el contexto son de lectura pública (RLS
@@ -201,8 +220,8 @@ export async function getUserChapterProgress(
 
 export async function getReadChaptersMap(userId: string): Promise<Record<number, number[]>> {
   const supabase = await createClient();
-  const [{ data: bookRows }, { data: progressRows }] = await Promise.all([
-    supabase.from("books").select("id, order"),
+  const [idToOrder, { data: progressRows }] = await Promise.all([
+    getBookOrderMap(),
     supabase
       .from("reading_progress")
       .select("book_id, chapter_number")
@@ -210,7 +229,6 @@ export async function getReadChaptersMap(userId: string): Promise<Record<number,
       .eq("status", "terminado"),
   ]);
 
-  const idToOrder = new Map((bookRows ?? []).map((r) => [r.id as number, r.order as number]));
   const map: Record<number, number[]> = {};
   for (const row of progressRows ?? []) {
     const order = idToOrder.get(row.book_id as number);
@@ -221,10 +239,9 @@ export async function getReadChaptersMap(userId: string): Promise<Record<number,
 }
 
 export async function getBookIdMap(): Promise<Record<number, number>> {
-  const supabase = await createClient();
-  const { data } = await supabase.from("books").select("id, order");
+  const rows = await getBookOrderRows();
   const map: Record<number, number> = {};
-  for (const row of data ?? []) map[row.order as number] = row.id as number;
+  for (const row of rows) map[row.order] = row.id;
   return map;
 }
 

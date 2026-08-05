@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { BOOKS } from "@/lib/books-meta";
+import { getBookOrderMap } from "@/lib/data/bible";
 import type { Profile, AdminImprovementNote } from "@/types/database";
 
 export async function getAllProfiles(): Promise<Profile[]> {
@@ -44,17 +45,16 @@ export async function getImprovementNotes(): Promise<AdminImprovementNote[]> {
 
 export async function getAllReadingActivity(): Promise<ActivityEntry[]> {
   const supabase = await createClient();
-  const [{ data: rows }, { data: bookRows }, { data: profiles }] = await Promise.all([
+  const [{ data: rows }, idToOrder, { data: profiles }] = await Promise.all([
     supabase
       .from("reading_progress")
       .select("user_id, book_id, chapter_number, status, last_read_at")
       .order("last_read_at", { ascending: false })
       .limit(500),
-    supabase.from("books").select("id, order"),
+    getBookOrderMap(),
     supabase.from("profiles").select("id, full_name"),
   ]);
 
-  const idToOrder = new Map((bookRows ?? []).map((r) => [r.id as number, r.order as number]));
   const idToName = new Map((profiles ?? []).map((p) => [p.id as string, p.full_name as string]));
 
   return (rows ?? []).map((r) => {

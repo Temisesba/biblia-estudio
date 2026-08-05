@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { BOOKS, slugify as slugifyBookName } from "@/lib/books-meta";
 import { getVersesByTopicSlug } from "@/lib/data/topics";
+import { getBookOrderRows } from "@/lib/data/bible";
 
 function chapterPath(bookOrder: number, chapterNumber: number) {
   const book = BOOKS.find((b) => b.order === bookOrder);
@@ -95,8 +96,8 @@ export async function bulkImportTopics(
 ) {
   const { supabase, userId } = await requireAdmin();
 
-  const { data: bookRows } = await supabase.from("books").select("id, order");
-  const orderToId = new Map((bookRows ?? []).map((r) => [r.order as number, r.id as number]));
+  const bookRows = await getBookOrderRows();
+  const orderToId = new Map(bookRows.map((r) => [r.order, r.id]));
 
   // Cache de "ultimo versiculo del capitulo" para referencias sin numero de
   // versiculo (ej. "Salmo 88" = capitulo completo).

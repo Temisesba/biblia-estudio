@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { BOOKS, slugify } from "@/lib/books-meta";
+import { getBookOrderMap } from "@/lib/data/bible";
 import type { PersonalTopic, PersonalVerseTopic } from "@/types/database";
 
 export async function getAllPersonalTopics(userId: string): Promise<(PersonalTopic & { verseCount: number })[]> {
@@ -59,12 +60,10 @@ export interface PersonalTaggedVerse {
 
 export async function getAllPersonalTaggedVerses(userId: string): Promise<PersonalTaggedVerse[]> {
   const supabase = await createClient();
-  const [{ data: links }, { data: bookRows }] = await Promise.all([
+  const [{ data: links }, idToOrder] = await Promise.all([
     supabase.from("personal_verse_topics").select("*, personal_topics(name)").eq("user_id", userId),
-    supabase.from("books").select("id, order"),
+    getBookOrderMap(),
   ]);
-
-  const idToOrder = new Map((bookRows ?? []).map((r) => [r.id as number, r.order as number]));
 
   return (links ?? []).map((l) => {
     const order = idToOrder.get(l.book_id as number);

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { BOOKS, slugify } from "@/lib/books-meta";
+import { getBookOrderMap } from "@/lib/data/bible";
 
 export interface PlanSummary {
   id: string;
@@ -83,7 +84,7 @@ async function fetchAllRows<T>(
 
 export async function getPlanDetail(userId: string, planId: string) {
   const supabase = await createClient();
-  const [{ data: plan }, days, { data: bookRows }, doneRows] = await Promise.all([
+  const [{ data: plan }, days, idToOrder, doneRows] = await Promise.all([
     supabase.from("reading_plans").select("*").eq("id", planId).single(),
     fetchAllRows((from, to, withCount) =>
       supabase
@@ -93,7 +94,7 @@ export async function getPlanDetail(userId: string, planId: string) {
         .order("day_number")
         .range(from, to)
     ),
-    supabase.from("books").select("id, order"),
+    getBookOrderMap(),
     fetchAllRows((from, to, withCount) =>
       supabase
         .from("reading_plan_progress")
@@ -104,7 +105,6 @@ export async function getPlanDetail(userId: string, planId: string) {
     ),
   ]);
 
-  const idToOrder = new Map((bookRows ?? []).map((r) => [r.id as number, r.order as number]));
   const doneSet = new Set((doneRows ?? []).map((d) => d.day_number as number));
 
   const detail: PlanDayDetail[] = (days ?? []).map((d) => {

@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { BOOKS, slugify } from "@/lib/books-meta";
+import { getBookOrderRows } from "@/lib/data/bible";
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -44,9 +45,9 @@ export async function previewModernization(
 ): Promise<ModernizationPreviewItem[]> {
   const { supabase } = await requireAdmin();
 
-  const { data: bookRows } = await supabase.from("books").select("id, order");
-  const orderToId = new Map((bookRows ?? []).map((r) => [r.order as number, r.id as number]));
-  const idToOrder = new Map((bookRows ?? []).map((r) => [r.id as number, r.order as number]));
+  const bookRows = await getBookOrderRows();
+  const orderToId = new Map(bookRows.map((r) => [r.order, r.id]));
+  const idToOrder = new Map(bookRows.map((r) => [r.id, r.order]));
 
   const results: ModernizationPreviewItem[] = [];
 

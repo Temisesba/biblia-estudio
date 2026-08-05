@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { BOOKS, slugify } from "@/lib/books-meta";
+import { getBookOrderMap } from "@/lib/data/bible";
 import type { Verse } from "@/types/database";
 
 export default async function SearchPage({
@@ -20,8 +21,7 @@ export default async function SearchPage({
     );
 
     const supabase = await createClient();
-    const { data: bookRows } = await supabase.from("books").select("id, order");
-    const idToOrder = new Map((bookRows ?? []).map((r) => [r.id as number, r.order as number]));
+    const idToOrder = await getBookOrderMap();
 
     const { data } = await supabase
       .from("verses")

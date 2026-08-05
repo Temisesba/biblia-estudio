@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { ReadingProgress } from "@/types/database";
-import { markChapterRead, unmarkChapterRead, updateReadingProgressDate } from "@/lib/actions/study";
+import { markChapterRead, removeLastReadingEvent, updateReadingProgressDate } from "@/lib/actions/study";
 
 function toDateInputValue(iso: string) {
   return new Date(iso).toISOString().slice(0, 10);
@@ -20,25 +20,18 @@ export function ChapterProgressPanel({
   const [pending, startTransition] = useTransition();
   const [editingDate, setEditingDate] = useState(false);
   const [dateDraft, setDateDraft] = useState(progress?.first_read_at ? toDateInputValue(progress.first_read_at) : "");
-  const [justLoggedAgain, setJustLoggedAgain] = useState(false);
-  const done = progress?.status === "terminado";
+  const done = progress?.status === "terminado" && !!progress?.last_read_at;
 
-  function toggleDone() {
-    startTransition(async () => {
-      if (done) {
-        await unmarkChapterRead(bookOrder, chapterNumber);
-      } else {
-        await markChapterRead(bookOrder, chapterNumber);
-      }
-    });
+  function markFirstRead() {
+    startTransition(() => markChapterRead(bookOrder, chapterNumber));
+  }
+
+  function unmarkLastRead() {
+    startTransition(() => removeLastReadingEvent(bookOrder, chapterNumber));
   }
 
   function leerOtraVez() {
-    startTransition(async () => {
-      await markChapterRead(bookOrder, chapterNumber);
-      setJustLoggedAgain(true);
-      setTimeout(() => setJustLoggedAgain(false), 2000);
-    });
+    startTransition(() => markChapterRead(bookOrder, chapterNumber));
   }
 
   function saveDate() {
@@ -52,30 +45,40 @@ export function ChapterProgressPanel({
   return (
     <div className="flex flex-col gap-4 py-6">
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-3 rounded-md border border-border p-4">
-          <input
-            type="checkbox"
-            checked={done}
-            disabled={pending}
-            onChange={toggleDone}
-            className="h-5 w-5 accent-[var(--primary)]"
-          />
-          <span className="font-medium">
-            {done ? "Leído ✓ (desmarcar quita el estado, no el historial)" : "Marcar este capítulo como leído"}
-          </span>
-        </label>
-
-        {done && (
-          <button
-            type="button"
-            onClick={leerOtraVez}
-            disabled={pending}
-            className={`rounded-md border border-border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
-              justLoggedAgain ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"
-            }`}
-          >
-            {justLoggedAgain ? "✓ Registrado" : "🔁 Leído otra vez"}
-          </button>
+        {done ? (
+          <>
+            <label className="flex items-center gap-3 rounded-md border border-border p-4">
+              <input
+                type="checkbox"
+                checked
+                disabled={pending}
+                onChange={unmarkLastRead}
+                className="h-5 w-5 accent-[var(--primary)]"
+              />
+              <span className="font-medium">
+                Leído última vez: {new Date(progress!.last_read_at as string).toLocaleDateString("es-MX")}
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={leerOtraVez}
+              disabled={pending}
+              className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+            >
+              🔁 Leído otra vez
+            </button>
+          </>
+        ) : (
+          <label className="flex items-center gap-3 rounded-md border border-border p-4">
+            <input
+              type="checkbox"
+              checked={false}
+              disabled={pending}
+              onChange={markFirstRead}
+              className="h-5 w-5 accent-[var(--primary)]"
+            />
+            <span className="font-medium">Marcar este capítulo como leído</span>
+          </label>
         )}
       </div>
 
@@ -124,10 +127,6 @@ export function ChapterProgressPanel({
             </dd>
           )}
         </div>
-        <Stat
-          label="Última lectura"
-          value={progress?.last_read_at ? new Date(progress.last_read_at).toLocaleString("es-MX") : "—"}
-        />
       </dl>
     </div>
   );

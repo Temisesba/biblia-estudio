@@ -26,7 +26,7 @@ import {
   toggleFavorite,
   createNote,
   markChapterRead,
-  unmarkChapterRead,
+  removeLastReadingEvent,
 } from "@/lib/actions/study";
 import {
   createPublicAnnotation,
@@ -679,24 +679,43 @@ export function VerseList({
         })}
       </div>
 
-      <label className="mt-4 flex items-center gap-3 rounded-md border border-border p-4 text-sm">
-        <input
-          type="checkbox"
-          checked={progress?.status === "terminado"}
-          disabled={pending}
-          onChange={() =>
-            startTransition(() =>
-              progress?.status === "terminado"
-                ? unmarkChapterRead(bookOrder, chapterNumber)
-                : markChapterRead(bookOrder, chapterNumber)
-            )
-          }
-          className="h-5 w-5 accent-[var(--primary)]"
-        />
-        <span className="font-medium">
-          {progress?.status === "terminado" ? "Leído ✓ (ve a la pestaña Progreso para leer otra vez)" : "Marcar este capítulo como leído"}
-        </span>
-      </label>
+      <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+        {progress?.status === "terminado" && progress.last_read_at ? (
+          <>
+            <label className="flex items-center gap-3 rounded-md border border-border p-4">
+              <input
+                type="checkbox"
+                checked
+                disabled={pending}
+                onChange={() => startTransition(() => removeLastReadingEvent(bookOrder, chapterNumber))}
+                className="h-5 w-5 accent-[var(--primary)]"
+              />
+              <span className="font-medium">
+                Leído última vez: {new Date(progress.last_read_at).toLocaleDateString("es-MX")}
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={() => startTransition(() => markChapterRead(bookOrder, chapterNumber))}
+              disabled={pending}
+              className="rounded-md border border-border px-3 py-2 font-medium hover:bg-muted disabled:opacity-50"
+            >
+              🔁 Leído otra vez
+            </button>
+          </>
+        ) : (
+          <label className="flex items-center gap-3 rounded-md border border-border p-4">
+            <input
+              type="checkbox"
+              checked={false}
+              disabled={pending}
+              onChange={() => startTransition(() => markChapterRead(bookOrder, chapterNumber))}
+              className="h-5 w-5 accent-[var(--primary)]"
+            />
+            <span className="font-medium">Marcar este capítulo como leído</span>
+          </label>
+        )}
+      </div>
 
       {commentFor && (
         <div

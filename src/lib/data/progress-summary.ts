@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { BOOKS, TOTAL_CHAPTERS } from "@/lib/books-meta";
+import { getBookOrderMap } from "@/lib/data/bible";
 
 export interface BookProgress {
   order: number;
@@ -18,8 +19,8 @@ export interface ProgressSummary {
 
 export async function getProgressSummary(userId: string): Promise<ProgressSummary> {
   const supabase = await createClient();
-  const [{ data: bookRows }, { data: progressRows }] = await Promise.all([
-    supabase.from("books").select("id, order"),
+  const [idToOrder, { data: progressRows }] = await Promise.all([
+    getBookOrderMap(),
     supabase
       .from("reading_progress")
       .select("book_id, chapter_number, status")
@@ -27,7 +28,6 @@ export async function getProgressSummary(userId: string): Promise<ProgressSummar
       .eq("status", "terminado"),
   ]);
 
-  const idToOrder = new Map((bookRows ?? []).map((r) => [r.id as number, r.order as number]));
   const readByOrder = new Map<number, Set<number>>();
   for (const row of progressRows ?? []) {
     const order = idToOrder.get(row.book_id as number);

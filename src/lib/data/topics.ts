@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { BOOKS, slugify } from "@/lib/books-meta";
+import { getBookOrderMap } from "@/lib/data/bible";
 import type { Topic, VerseTopic } from "@/types/database";
 
 export async function getAllTopics(): Promise<(Topic & { verseCount: number })[]> {
@@ -61,9 +62,9 @@ export async function getVersesByTopicSlug(
 
   // Se trae el tema y sus versiculos ligados en una sola ida y vuelta
   // (join embebido de PostgREST) en vez de dos consultas seguidas.
-  const [{ data: linkRows }, { data: bookRows }] = await Promise.all([
+  const [{ data: linkRows }, idToOrder] = await Promise.all([
     supabase.from("verse_topics").select("*, topics!inner(*)").eq("topics.slug", slug),
-    supabase.from("books").select("id, order"),
+    getBookOrderMap(),
   ]);
 
   if (!linkRows || linkRows.length === 0) {
@@ -73,7 +74,6 @@ export async function getVersesByTopicSlug(
 
   const topic = (linkRows[0] as unknown as { topics: Topic }).topics;
   const links = linkRows as unknown as VerseTopic[];
-  const idToOrder = new Map((bookRows ?? []).map((r) => [r.id as number, r.order as number]));
 
   // Una sola consulta con todos los versiculos en vez de una por versiculo
   // (antes eran N ida-y-vueltas a Supabase, aqui es solo una).

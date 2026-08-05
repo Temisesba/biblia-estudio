@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { getPlanDetail } from "@/lib/data/reading-plans";
+import { getBookOrderRows } from "@/lib/data/bible";
+import { markChapterRead } from "@/lib/actions/study";
 
 export async function loadPlanDetail(planId: string) {
   const supabase = await createClient();
@@ -57,8 +59,8 @@ export async function addPlanChapters(
 ) {
   const { supabase } = await requireAdmin();
 
-  const { data: bookRows } = await supabase.from("books").select("id, order");
-  const orderToId = new Map((bookRows ?? []).map((r) => [r.order as number, r.id as number]));
+  const bookRows = await getBookOrderRows();
+  const orderToId = new Map(bookRows.map((r) => [r.order, r.id]));
 
   const { data: existingDays } = await supabase
     .from("reading_plan_days")
@@ -102,8 +104,9 @@ export async function markPlanDayDone(planId: string, dayNumber: number) {
     .upsert({ user_id: user.id, plan_id: planId, day_number: dayNumber });
   if (error) throw new Error(error.message);
 
-  // Unificar con el progreso general: marcar tambien el capitulo como
-  // leido, para que aparezca en el calendario y en Progreso.
+  // Unificar con el progreso general: marcar tambien el capitulo como leido (esto ya
+  // registra el evento en reading_events y recalcula reading_progress), para que
+  // aparezca en el calendario y en Progreso.
   const { data: day } = await supabase
     .from("reading_plan_days")
     .select("book_id, chapter_number")
@@ -111,12 +114,11 @@ export async function markPlanDayDone(planId: string, dayNumber: number) {
     .eq("day_number", dayNumber)
     .maybeSingle();
   if (day) {
-    await supabase.rpc("mark_chapter_read", {
-      p_book_id: day.book_id as number,
-      p_chapter_number: day.chapter_number as number,
-    });
-    revalidatePath("/mi-estudio");
-    revalidatePath("/progreso");
+    const bookRows = await getBookOrderRows();
+    const bookOrder = bookRows.find((b) => b.id === day.book_id)?.order;
+    if (bookOrder !== undefined) {
+      await markChapterRead(bookOrder, day.chapter_number as number);
+    }
   }
 
   revalidatePath(`/planes/${planId}`);

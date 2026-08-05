@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { BOOKS } from "@/lib/books-meta";
 import { slugify } from "@/lib/books-meta";
+import { getBookOrderRows } from "@/lib/data/bible";
 
 function chapterPath(bookOrder: number, chapter: number) {
   const book = BOOKS.find((b) => b.order === bookOrder);
@@ -156,24 +157,60 @@ export async function toggleFavorite(input: {
 // Nota: "order" es un parámetro reservado en PostgREST (usado para ORDER BY), así que
 // no se puede filtrar con .eq("order", ...) sobre una columna llamada "order" — se trae
 // la lista completa (66 filas) y se filtra en JS.
-async function resolveBookId(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], bookOrder: number) {
+async function resolveBookId(bookOrder: number) {
   const book = BOOKS.find((b) => b.order === bookOrder);
   if (!book) throw new Error("Libro no encontrado");
-  const { data: allBooks } = await supabase.from("books").select("id, order");
-  const bookRow = (allBooks ?? []).find((b) => b.order === bookOrder);
+  const allBooks = await getBookOrderRows();
+  const bookRow = allBooks.find((b) => b.order === bookOrder);
   if (!bookRow) throw new Error("Libro no sembrado en la base de datos");
-  return bookRow.id as number;
+  return bookRow.id;
 }
 
-export async function markChapterRead(bookOrder: number, chapterNumber: number) {
-  const { supabase } = await requireUser();
-  const bookId = await resolveBookId(supabase, bookOrder);
+// "reading_progress" (status/times_read/first_read_at/last_read_at) es un agregado que
+// se recalcula por completo desde "reading_events" cada vez que se agrega o quita un
+// evento — asi times_read, primera y ultima lectura siempre reflejan los eventos reales.
+async function recomputeReadingProgress(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  userId: string,
+  bookId: number,
+  chapterNumber: number
+) {
+  const { data: events } = await supabase
+    .from("reading_events")
+    .select("read_at")
+    .eq("user_id", userId)
+    .eq("book_id", bookId)
+    .eq("chapter_number", chapterNumber)
+    .order("read_at", { ascending: true });
+  const rows = events ?? [];
+  const timesRead = rows.length;
 
-  const { error } = await supabase.rpc("mark_chapter_read", {
-    p_book_id: bookId,
-    p_chapter_number: chapterNumber,
-  });
+  const { error } = await supabase.from("reading_progress").upsert(
+    {
+      user_id: userId,
+      book_id: bookId,
+      chapter_number: chapterNumber,
+      status: timesRead > 0 ? "terminado" : "pendiente",
+      times_read: timesRead,
+      first_read_at: rows[0]?.read_at ?? null,
+      last_read_at: rows[timesRead - 1]?.read_at ?? null,
+    },
+    { onConflict: "user_id,book_id,chapter_number" }
+  );
   if (error) throw new Error(error.message);
+}
+
+// "Leído otra vez": agrega un nuevo evento con fecha y hora de ahora mismo. Tambien se
+// usa para la primera lectura (el checkbox "Marcar como leido").
+export async function markChapterRead(bookOrder: number, chapterNumber: number) {
+  const { supabase, userId } = await requireUser();
+  const bookId = await resolveBookId(bookOrder);
+
+  const { error } = await supabase
+    .from("reading_events")
+    .insert({ user_id: userId, book_id: bookId, chapter_number: chapterNumber });
+  if (error) throw new Error(error.message);
+  await recomputeReadingProgress(supabase, userId, bookId, chapterNumber);
 
   // Si este capitulo tambien es un dia de algun plan de lectura en el
   // que el usuario esta inscrito, marcar ese dia como leido tambien.
@@ -207,20 +244,26 @@ export async function markChapterRead(bookOrder: number, chapterNumber: number) 
   revalidatePath("/progreso");
 }
 
-// Desmarca el estado sin tocar el historial (veces leido, primera/ultima lectura):
-// "leido" es un estado que se puede prender y apagar, pero cuantas veces lo leiste
-// y cuando ya sucedieron y no deberian borrarse por desmarcar la casilla.
-export async function unmarkChapterRead(bookOrder: number, chapterNumber: number) {
+// Desmarcar "Leído última vez" borra ese registro de lectura puntual (el mas reciente),
+// no solo un estado — si era el unico, el capitulo vuelve a quedar pendiente.
+export async function removeLastReadingEvent(bookOrder: number, chapterNumber: number) {
   const { supabase, userId } = await requireUser();
-  const bookId = await resolveBookId(supabase, bookOrder);
+  const bookId = await resolveBookId(bookOrder);
 
-  const { error } = await supabase
-    .from("reading_progress")
-    .update({ status: "pendiente" })
+  const { data: last } = await supabase
+    .from("reading_events")
+    .select("id")
     .eq("user_id", userId)
     .eq("book_id", bookId)
-    .eq("chapter_number", chapterNumber);
-  if (error) throw new Error(error.message);
+    .eq("chapter_number", chapterNumber)
+    .order("read_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (last) {
+    const { error } = await supabase.from("reading_events").delete().eq("id", last.id);
+    if (error) throw new Error(error.message);
+  }
+  await recomputeReadingProgress(supabase, userId, bookId, chapterNumber);
 
   revalidatePath(chapterPath(bookOrder, chapterNumber));
   revalidatePath("/mi-estudio");
@@ -228,20 +271,31 @@ export async function unmarkChapterRead(bookOrder: number, chapterNumber: number
 }
 
 // Permite corregir la fecha de "primera lectura" (la que ancla el capitulo en el
-// calendario de Progreso) para capitulos que se leyeron antes de usar la app.
+// calendario de Progreso). Edita el evento mas antiguo (no solo el agregado en cache),
+// para que la proxima vez que se recalcule desde reading_events no se pierda el cambio.
 export async function updateReadingProgressDate(bookOrder: number, chapterNumber: number, isoDate: string) {
   const { supabase, userId } = await requireUser();
-  const bookId = await resolveBookId(supabase, bookOrder);
+  const bookId = await resolveBookId(bookOrder);
   const date = new Date(`${isoDate}T12:00:00`);
   if (Number.isNaN(date.getTime())) throw new Error("Fecha invalida");
 
-  const { error } = await supabase
-    .from("reading_progress")
-    .update({ first_read_at: date.toISOString() })
+  const { data: first } = await supabase
+    .from("reading_events")
+    .select("id")
     .eq("user_id", userId)
     .eq("book_id", bookId)
-    .eq("chapter_number", chapterNumber);
-  if (error) throw new Error(error.message);
+    .eq("chapter_number", chapterNumber)
+    .order("read_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (first) {
+    const { error } = await supabase
+      .from("reading_events")
+      .update({ read_at: date.toISOString() })
+      .eq("id", first.id);
+    if (error) throw new Error(error.message);
+  }
+  await recomputeReadingProgress(supabase, userId, bookId, chapterNumber);
 
   revalidatePath(chapterPath(bookOrder, chapterNumber));
   revalidatePath("/progreso");
