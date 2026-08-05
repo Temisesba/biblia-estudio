@@ -42,15 +42,7 @@ import {
 } from "@/lib/actions/personal-topics";
 import { upsertSectionTitle, deleteSectionTitle } from "@/lib/actions/section-titles";
 import { Star, MessageCircle, Tag, Bookmark } from "lucide-react";
-
-export function parseTagsInput(input: string): string[] {
-  const seen = new Set<string>();
-  for (const raw of input.split(/[,\s]+/)) {
-    const tag = raw.trim().replace(/^#/, "").toLowerCase();
-    if (tag) seen.add(tag);
-  }
-  return Array.from(seen);
-}
+import { TagsInput } from "@/components/tags-input";
 
 interface Selection {
   verseStart: number;
@@ -119,7 +111,7 @@ export function VerseList({
   const [selection, setSelection] = useState<Selection | null>(null);
   const [commentFor, setCommentFor] = useState<Selection | null>(null);
   const [commentText, setCommentText] = useState("");
-  const [commentTags, setCommentTags] = useState("");
+  const [commentTags, setCommentTags] = useState<string[]>([]);
   const [publicNoteFor, setPublicNoteFor] = useState<Selection | null>(null);
   const [publicNoteText, setPublicNoteText] = useState("");
   const [viewingAnnotation, setViewingAnnotation] = useState<PublicAnnotation | null>(null);
@@ -302,12 +294,12 @@ export function VerseList({
         highlightId: null,
         quotedText: commentFor.text,
         content: commentText.trim(),
-        tags: parseTagsInput(commentTags),
+        tags: commentTags,
       });
       window.getSelection()?.removeAllRanges();
       setCommentFor(null);
       setCommentText("");
-      setCommentTags("");
+      setCommentTags([]);
     });
   }
 
@@ -723,7 +715,7 @@ export function VerseList({
           className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4"
           onClick={() => {
             setCommentFor(null);
-            setCommentTags("");
+            setCommentTags([]);
           }}
         >
           <div
@@ -741,17 +733,14 @@ export function VerseList({
               className="w-full rounded-md border border-border bg-background p-2 text-sm outline-none focus:border-primary"
               placeholder="Escribe tu comentario..."
             />
-            <input
-              value={commentTags}
-              onChange={(e) => setCommentTags(e.target.value)}
-              placeholder="Etiquetas (opcional), ej. oracion familia"
-              className="mt-2 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
-            />
+            <div className="mt-2">
+              <TagsInput value={commentTags} onChange={setCommentTags} placeholder="Etiquetas (opcional), ej. oración" />
+            </div>
             <div className="mt-3 flex justify-end gap-2">
               <button
                 onClick={() => {
                   setCommentFor(null);
-                  setCommentTags("");
+                  setCommentTags([]);
                 }}
                 className="rounded-md px-3 py-1.5 text-sm hover:bg-muted"
               >

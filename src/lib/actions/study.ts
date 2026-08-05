@@ -270,17 +270,22 @@ export async function removeLastReadingEvent(bookOrder: number, chapterNumber: n
   revalidatePath("/progreso");
 }
 
-// Corrige la fecha/hora de una lectura puntual del historial (input datetime-local,
-// ej. "2026-08-04T14:30" en hora local del navegador).
+// Corrige la fecha/hora de una lectura puntual del historial. IMPORTANTE: "isoDateTime"
+// debe ser un instante ya resuelto (con offset/"Z", ej. Date#toISOString()), no el string
+// crudo de un <input type="datetime-local"> (ese no trae zona horaria, y como esta funcion
+// corre en el servidor, new Date() lo interpretaria con la zona horaria del SERVIDOR en vez
+// de la del usuario -- eso causaba que a alguien en Japon una lectura marcada "1pm" le
+// apareciera como "10pm" (el servidor la tomo como UTC). La conversion de datetime-local a
+// ISO debe hacerse en el cliente, donde "hora local" sí significa la del usuario.
 export async function updateReadingEventDate(
   id: string,
   bookOrder: number,
   chapterNumber: number,
-  localDateTime: string
+  isoDateTime: string
 ) {
   const { supabase, userId } = await requireUser();
   const bookId = await resolveBookId(bookOrder);
-  const date = new Date(localDateTime);
+  const date = new Date(isoDateTime);
   if (Number.isNaN(date.getTime())) throw new Error("Fecha invalida");
 
   const { error } = await supabase

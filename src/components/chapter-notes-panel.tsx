@@ -6,9 +6,9 @@ import type { Highlight, Note, ContextHighlight, ContextFavorite } from "@/types
 import type { ChapterPersonalTopicsMap } from "@/lib/data/personal-topics";
 import { createNote, updateNote, deleteNote, deleteHighlight } from "@/lib/actions/study";
 import { deleteContextHighlight, toggleContextFavorite } from "@/lib/actions/context-study";
-import { parseTagsInput } from "@/components/verse-list";
 import { contextFieldLabel } from "@/lib/context-fields";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
+import { TagsInput } from "@/components/tags-input";
 
 export function ChapterNotesPanel({
   bookId,
@@ -43,7 +43,7 @@ export function ChapterNotesPanel({
   const generalNote = optimisticNotes.find((n) => n.verse_number === null);
   const verseComments = optimisticNotes.filter((n) => n.verse_number !== null);
   const [generalText, setGeneralText] = useState(generalNote?.content ?? "");
-  const [generalTags, setGeneralTags] = useState((generalNote?.tags ?? []).join(" "));
+  const [generalTags, setGeneralTags] = useState<string[]>(generalNote?.tags ?? []);
   const [pending, startTransition] = useTransition();
   const [optimisticHighlights, removeOptimisticHighlight] = useOptimistic<Highlight[], string>(
     highlights,
@@ -60,7 +60,7 @@ export function ChapterNotesPanel({
 
   function saveGeneral() {
     if (!generalText.trim()) return;
-    const tags = parseTagsInput(generalTags);
+    const tags = generalTags;
     startTransition(async () => {
       if (generalNote) {
         await updateNote(generalNote.id, generalText.trim(), bookOrder, chapterNumber, tags);
@@ -111,12 +111,9 @@ export function ChapterNotesPanel({
           placeholder="Escribe aquí tus reflexiones generales sobre este capítulo..."
           className="w-full rounded-md border border-border bg-background p-3 text-sm outline-none focus:border-primary"
         />
-        <input
-          value={generalTags}
-          onChange={(e) => setGeneralTags(e.target.value)}
-          placeholder="Etiquetas (opcional), ej. oracion familia"
-          className="mt-2 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
-        />
+        <div className="mt-2">
+          <TagsInput value={generalTags} onChange={setGeneralTags} placeholder="Etiquetas (opcional), ej. oración" />
+        </div>
         <button
           onClick={saveGeneral}
           disabled={pending}
@@ -258,7 +255,7 @@ function CommentItem({
 }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(note.content);
-  const [tagsText, setTagsText] = useState((note.tags ?? []).join(" "));
+  const [tagsText, setTagsText] = useState<string[]>(note.tags ?? []);
   const [, startTransition] = useTransition();
 
   return (
@@ -286,17 +283,14 @@ function CommentItem({
             rows={3}
             className="w-full rounded-md border border-border bg-background p-2 text-sm outline-none focus:border-primary"
           />
-          <input
-            value={tagsText}
-            onChange={(e) => setTagsText(e.target.value)}
-            placeholder="Etiquetas (opcional), ej. oracion familia"
-            className="mt-2 w-full rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
-          />
+          <div className="mt-2">
+            <TagsInput value={tagsText} onChange={setTagsText} placeholder="Etiquetas (opcional), ej. oración" />
+          </div>
           <div className="mt-2 flex gap-2">
             <button
               onClick={() =>
                 startTransition(async () => {
-                  await updateNote(note.id, text, bookOrder, chapterNumber, parseTagsInput(tagsText));
+                  await updateNote(note.id, text, bookOrder, chapterNumber, tagsText);
                   setEditing(false);
                 })
               }

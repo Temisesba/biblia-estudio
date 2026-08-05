@@ -132,8 +132,12 @@ function ReadingEventRow({
 
   function save() {
     if (!draft) return;
+    // new Date(draft) corre aqui en el navegador, asi que "draft" (sin zona horaria) se
+    // interpreta en la hora local del usuario -- toISOString() ya manda un instante sin
+    // ambiguedad al servidor, para que no dependa de en que zona horaria corre Vercel.
+    const iso = new Date(draft).toISOString();
     startTransition(async () => {
-      await updateReadingEventDate(event.id, bookOrder, chapterNumber, draft);
+      await updateReadingEventDate(event.id, bookOrder, chapterNumber, iso);
       setEditing(false);
     });
   }
