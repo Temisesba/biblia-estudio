@@ -22,23 +22,53 @@ export function ChapterProgressPanel({
   progress: ReadingProgress | null;
   readingEvents: ReadingEvent[];
 }) {
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [optimisticEvents, removeOptimisticEvent] = useOptimistic<ReadingEvent[], string>(
     readingEvents,
     (state, id) => state.filter((e) => e.id !== id)
   );
-  const done = progress?.status === "terminado" && !!progress?.last_read_at;
+  // Sin esto, la casilla se quedaba "colgada" hasta que el servidor terminara (varios
+  // viajes de red) -- ahora refleja el cambio al instante y el servidor la confirma despues.
+  const [optimisticProgress, updateOptimisticProgress] = useOptimistic<
+    ReadingProgress | null,
+    "mark" | "unmark"
+  >(progress, (state, action) => {
+    const now = new Date().toISOString();
+    if (action === "mark") {
+      return {
+        id: state?.id ?? "optimistic",
+        user_id: state?.user_id ?? "",
+        book_id: state?.book_id ?? 0,
+        chapter_number: chapterNumber,
+        status: "terminado",
+        times_read: (state?.times_read ?? 0) + 1,
+        first_read_at: state?.first_read_at ?? now,
+        last_read_at: now,
+      };
+    }
+    return state ? { ...state, status: "pendiente" } : state;
+  });
+  const done = optimisticProgress?.status === "terminado" && !!optimisticProgress?.last_read_at;
 
   function markFirstRead() {
-    startTransition(() => markChapterRead(bookOrder, chapterNumber));
+    startTransition(async () => {
+      updateOptimisticProgress("mark");
+      await markChapterRead(bookOrder, chapterNumber);
+    });
   }
 
   function unmarkLastRead() {
-    startTransition(() => removeLastReadingEvent(bookOrder, chapterNumber));
+    startTransition(async () => {
+      updateOptimisticProgress("unmark");
+      await removeLastReadingEvent(bookOrder, chapterNumber);
+    });
   }
 
   function leerOtraVez() {
-    startTransition(() => markChapterRead(bookOrder, chapterNumber));
+    startTransition(async () => {
+      updateOptimisticProgress("mark");
+      await markChapterRead(bookOrder, chapterNumber);
+    });
   }
 
   function deleteEvent(id: string) {
@@ -57,19 +87,17 @@ export function ChapterProgressPanel({
               <input
                 type="checkbox"
                 checked
-                disabled={pending}
                 onChange={unmarkLastRead}
                 className="h-5 w-5 accent-[var(--primary)]"
               />
               <span className="font-medium">
-                Leído última vez: {new Date(progress!.last_read_at as string).toLocaleString("es-MX")}
+                Leído última vez: {new Date(optimisticProgress!.last_read_at as string).toLocaleString("es-MX")}
               </span>
             </label>
             <button
               type="button"
               onClick={leerOtraVez}
-              disabled={pending}
-              className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+              className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-muted"
             >
               🔁 Leído otra vez
             </button>
@@ -79,7 +107,6 @@ export function ChapterProgressPanel({
             <input
               type="checkbox"
               checked={false}
-              disabled={pending}
               onChange={markFirstRead}
               className="h-5 w-5 accent-[var(--primary)]"
             />
@@ -89,8 +116,8 @@ export function ChapterProgressPanel({
       </div>
 
       <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-2">
-        <Stat label="Estado" value={statusLabel(progress?.status)} />
-        <Stat label="Veces leído" value={String(progress?.times_read ?? 0)} />
+        <Stat label="Estado" value={statusLabel(optimisticProgress?.status)} />
+        <Stat label="Veces leído" value={String(optimisticProgress?.times_read ?? 0)} />
       </dl>
 
       <section>

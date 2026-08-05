@@ -108,6 +108,28 @@ export function VerseList({
   >(favorites, (state, action) =>
     action.type === "add" ? [...state, action.favorite] : state.filter((f) => f.id !== action.id)
   );
+  // Marcar/desmarcar leido no tenia actualizacion optimista: la casilla se quedaba
+  // "colgada" hasta que el servidor terminara (varios viajes de red), sensacion de que
+  // "tarda tanto". Ahora refleja el cambio al instante y el servidor la confirma despues.
+  const [optimisticProgress, updateOptimisticProgress] = useOptimistic<
+    ReadingProgress | null,
+    "mark" | "unmark"
+  >(progress ?? null, (state, action) => {
+    const now = new Date().toISOString();
+    if (action === "mark") {
+      return {
+        id: state?.id ?? "optimistic",
+        user_id: state?.user_id ?? "",
+        book_id: bookId,
+        chapter_number: chapterNumber,
+        status: "terminado",
+        times_read: (state?.times_read ?? 0) + 1,
+        first_read_at: state?.first_read_at ?? now,
+        last_read_at: now,
+      };
+    }
+    return state ? { ...state, status: "pendiente" } : state;
+  });
   const [selection, setSelection] = useState<Selection | null>(null);
   const [commentFor, setCommentFor] = useState<Selection | null>(null);
   const [commentText, setCommentText] = useState("");
@@ -673,25 +695,33 @@ export function VerseList({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-        {progress?.status === "terminado" && progress.last_read_at ? (
+        {optimisticProgress?.status === "terminado" && optimisticProgress.last_read_at ? (
           <>
             <label className="flex items-center gap-3 rounded-md border border-border p-4">
               <input
                 type="checkbox"
                 checked
-                disabled={pending}
-                onChange={() => startTransition(() => removeLastReadingEvent(bookOrder, chapterNumber))}
+                onChange={() =>
+                  startTransition(async () => {
+                    updateOptimisticProgress("unmark");
+                    await removeLastReadingEvent(bookOrder, chapterNumber);
+                  })
+                }
                 className="h-5 w-5 accent-[var(--primary)]"
               />
               <span className="font-medium">
-                Leído última vez: {new Date(progress.last_read_at).toLocaleString("es-MX")}
+                Leído última vez: {new Date(optimisticProgress.last_read_at).toLocaleString("es-MX")}
               </span>
             </label>
             <button
               type="button"
-              onClick={() => startTransition(() => markChapterRead(bookOrder, chapterNumber))}
-              disabled={pending}
-              className="rounded-md border border-border px-3 py-2 font-medium hover:bg-muted disabled:opacity-50"
+              onClick={() =>
+                startTransition(async () => {
+                  updateOptimisticProgress("mark");
+                  await markChapterRead(bookOrder, chapterNumber);
+                })
+              }
+              className="rounded-md border border-border px-3 py-2 font-medium hover:bg-muted"
             >
               🔁 Leído otra vez
             </button>
@@ -701,8 +731,12 @@ export function VerseList({
             <input
               type="checkbox"
               checked={false}
-              disabled={pending}
-              onChange={() => startTransition(() => markChapterRead(bookOrder, chapterNumber))}
+              onChange={() =>
+                startTransition(async () => {
+                  updateOptimisticProgress("mark");
+                  await markChapterRead(bookOrder, chapterNumber);
+                })
+              }
               className="h-5 w-5 accent-[var(--primary)]"
             />
             <span className="font-medium">Marcar este capítulo como leído</span>

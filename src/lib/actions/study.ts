@@ -202,28 +202,31 @@ async function recomputeReadingProgress(
 
 // "Leído otra vez": agrega un nuevo evento con fecha y hora de ahora mismo. Tambien se
 // usa para la primera lectura (el checkbox "Marcar como leido").
+//
+// Antes esto hacia hasta 6 viajes de red SECUENCIALES a Supabase (incluyendo un
+// auth.getUser() repetido que ya se habia resuelto en requireUser()) antes de devolver el
+// control — de ahi la sensacion de que "tarda tanto" al presionar. Ahora reutiliza el
+// userId ya resuelto y corre en paralelo todo lo que no depende de un paso anterior.
 export async function markChapterRead(bookOrder: number, chapterNumber: number) {
   const { supabase, userId } = await requireUser();
-  const bookId = await resolveBookId(bookOrder);
+  const [bookId, { data: enrollments }] = await Promise.all([
+    resolveBookId(bookOrder),
+    supabase.from("reading_plan_enrollments").select("plan_id").eq("user_id", userId),
+  ]);
 
   const { error } = await supabase
     .from("reading_events")
     .insert({ user_id: userId, book_id: bookId, chapter_number: chapterNumber });
   if (error) throw new Error(error.message);
-  await recomputeReadingProgress(supabase, userId, bookId, chapterNumber);
 
-  // Si este capitulo tambien es un dia de algun plan de lectura en el
-  // que el usuario esta inscrito, marcar ese dia como leido tambien.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) {
-    const { data: enrollments } = await supabase
-      .from("reading_plan_enrollments")
-      .select("plan_id")
-      .eq("user_id", user.id);
-    const planIds = (enrollments ?? []).map((e) => e.plan_id as string);
-    if (planIds.length > 0) {
+  // Si este capitulo tambien es un dia de algun plan de lectura en el que el usuario
+  // esta inscrito, marcar ese dia como leido tambien -- en paralelo con recalcular el
+  // agregado, ya que son independientes entre si.
+  const planIds = (enrollments ?? []).map((e) => e.plan_id as string);
+  await Promise.all([
+    recomputeReadingProgress(supabase, userId, bookId, chapterNumber),
+    (async () => {
+      if (planIds.length === 0) return;
       const { data: days } = await supabase
         .from("reading_plan_days")
         .select("plan_id, day_number")
@@ -233,11 +236,11 @@ export async function markChapterRead(bookOrder: number, chapterNumber: number) 
       if (days && days.length > 0) {
         await supabase
           .from("reading_plan_progress")
-          .upsert(days.map((d) => ({ user_id: user.id, plan_id: d.plan_id as string, day_number: d.day_number as number })));
+          .upsert(days.map((d) => ({ user_id: userId, plan_id: d.plan_id as string, day_number: d.day_number as number })));
         for (const d of days) revalidatePath(`/planes/${d.plan_id}`);
       }
-    }
-  }
+    })(),
+  ]);
 
   revalidatePath(chapterPath(bookOrder, chapterNumber));
   revalidatePath("/mi-estudio");
@@ -249,7 +252,6 @@ export async function markChapterRead(bookOrder: number, chapterNumber: number) 
 export async function removeLastReadingEvent(bookOrder: number, chapterNumber: number) {
   const { supabase, userId } = await requireUser();
   const bookId = await resolveBookId(bookOrder);
-
   const { data: last } = await supabase
     .from("reading_events")
     .select("id")

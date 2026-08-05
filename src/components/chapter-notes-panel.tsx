@@ -44,6 +44,7 @@ export function ChapterNotesPanel({
   const verseComments = optimisticNotes.filter((n) => n.verse_number !== null);
   const [generalText, setGeneralText] = useState(generalNote?.content ?? "");
   const [generalTags, setGeneralTags] = useState<string[]>(generalNote?.tags ?? []);
+  const [generalSaved, setGeneralSaved] = useState(false);
   const [pending, startTransition] = useTransition();
   const [optimisticHighlights, removeOptimisticHighlight] = useOptimistic<Highlight[], string>(
     highlights,
@@ -75,6 +76,7 @@ export function ChapterNotesPanel({
           tags,
         });
       }
+      setGeneralSaved(true);
     });
   }
 
@@ -106,21 +108,34 @@ export function ChapterNotesPanel({
         <h3 className="mb-2 font-semibold">Nota general del capítulo</h3>
         <textarea
           value={generalText}
-          onChange={(e) => setGeneralText(e.target.value)}
+          onChange={(e) => {
+            setGeneralText(e.target.value);
+            setGeneralSaved(false);
+          }}
           rows={5}
           placeholder="Escribe aquí tus reflexiones generales sobre este capítulo..."
           className="w-full rounded-md border border-border bg-background p-3 text-sm outline-none focus:border-primary"
         />
         <div className="mt-2">
-          <TagsInput value={generalTags} onChange={setGeneralTags} placeholder="Etiquetas (opcional), ej. oración" />
+          <TagsInput
+            value={generalTags}
+            onChange={(tags) => {
+              setGeneralTags(tags);
+              setGeneralSaved(false);
+            }}
+            placeholder="Etiquetas (opcional), ej. oración"
+          />
         </div>
-        <button
-          onClick={saveGeneral}
-          disabled={pending}
-          className="mt-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
-        >
-          Guardar nota
-        </button>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            onClick={saveGeneral}
+            disabled={pending}
+            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          >
+            Guardar nota
+          </button>
+          {generalSaved && <span className="text-sm text-green-600 dark:text-green-400">✓ Guardada</span>}
+        </div>
       </section>
 
       <section>
