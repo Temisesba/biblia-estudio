@@ -2,17 +2,26 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { getPlanDetail } from "@/lib/data/reading-plans";
+import { getPlanMeta, getPlanDayWindow } from "@/lib/data/reading-plans";
 import { getBookOrderRows } from "@/lib/data/bible";
 import { markChapterRead } from "@/lib/actions/study";
 
-export async function loadPlanDetail(planId: string) {
+export async function loadPlanMeta(planId: string) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
-  return getPlanDetail(user.id, planId);
+  return getPlanMeta(user.id, planId);
+}
+
+export async function loadPlanDayWindow(planId: string, fromDay: number, toDay: number) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+  return getPlanDayWindow(user.id, planId, fromDay, toDay);
 }
 
 export async function enrollInPlan(planId: string) {

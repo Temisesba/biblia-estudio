@@ -2,30 +2,46 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { markPlanDayDone } from "@/lib/actions/reading-plans";
+import { markPlanDayDone, loadPlanDayWindow } from "@/lib/actions/reading-plans";
 import type { PlanDayDetail } from "@/lib/data/reading-plans";
 
 const PAGE_SIZE = 100;
 
-// Un plan largo (la "Lectura cronológica" tiene 1205 días) pintaba TODAS las filas de una
-// vez -- son 1205 nodos con checkbox + link, lo cual es lento de renderizar/hidratar. Ahora
-// se muestra una tanda a la vez, empezando justo despues del ultimo dia leido (para no
-// tener que darle "Ver más" varias veces si ya vas avanzado en el plan).
-function initialVisibleCount(days: PlanDayDetail[]) {
-  const firstPending = days.findIndex((d) => !d.completed);
-  const anchor = firstPending === -1 ? days.length : firstPending;
-  return Math.min(days.length, Math.max(PAGE_SIZE, anchor + PAGE_SIZE));
-}
-
-export function PlanDayList({ planId, days }: { planId: string; days: PlanDayDetail[] }) {
+export function PlanDayList({
+  planId,
+  totalDays,
+  initialFromDay,
+  initialDays,
+}: {
+  planId: string;
+  totalDays: number;
+  initialFromDay: number;
+  initialDays: PlanDayDetail[];
+}) {
   const [pending, startTransition] = useTransition();
-  const [visibleCount, setVisibleCount] = useState(() => initialVisibleCount(days));
-  const visible = days.slice(0, visibleCount);
+  const [days, setDays] = useState(initialDays);
+  const [loadedTo, setLoadedTo] = useState(initialFromDay + initialDays.length - 1);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  async function verMas() {
+    setLoadingMore(true);
+    const from = loadedTo + 1;
+    const to = Math.min(totalDays, from + PAGE_SIZE - 1);
+    const more = await loadPlanDayWindow(planId, from, to);
+    setDays((cur) => [...cur, ...more]);
+    setLoadedTo(to);
+    setLoadingMore(false);
+  }
 
   return (
     <div className="flex flex-col gap-3">
+      {initialFromDay > 1 && (
+        <p className="text-xs text-foreground/50">
+          Empezando en el día {initialFromDay} de {totalDays} (los anteriores ya están leídos).
+        </p>
+      )}
       <ul className="flex flex-col gap-1">
-        {visible.map((d, i) => (
+        {days.map((d) => (
           <li key={d.dayNumber} className="flex items-center gap-3 rounded-md border border-border p-3 text-sm">
             <input
               type="checkbox"
@@ -34,20 +50,21 @@ export function PlanDayList({ planId, days }: { planId: string; days: PlanDayDet
               onChange={() => startTransition(() => markPlanDayDone(planId, d.dayNumber))}
               className="h-4 w-4 accent-[var(--primary)]"
             />
-            <span className="w-8 shrink-0 text-right text-foreground/40">{i + 1}.</span>
+            <span className="w-10 shrink-0 text-right text-foreground/40">{d.dayNumber}.</span>
             <Link href={d.href} className="font-medium text-primary hover:underline">
               {d.bookName} {d.chapterNumber}
             </Link>
           </li>
         ))}
       </ul>
-      {visibleCount < days.length && (
+      {loadedTo < totalDays && (
         <button
           type="button"
-          onClick={() => setVisibleCount((c) => Math.min(days.length, c + PAGE_SIZE))}
-          className="self-start rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+          onClick={verMas}
+          disabled={loadingMore}
+          className="self-start rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
         >
-          Ver más ({days.length - visibleCount} restantes)
+          {loadingMore ? "Cargando..." : `Ver más (${totalDays - loadedTo} restantes)`}
         </button>
       )}
     </div>

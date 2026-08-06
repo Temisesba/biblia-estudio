@@ -82,6 +82,80 @@ async function fetchAllRows<T>(
   return [...rows, ...pages.flatMap((p) => p.data ?? [])];
 }
 
+// Para un plan largo (la "Lectura cronológica" tiene 1205 días), lo lento de "Ver
+// capítulos" no era pintar la lista sino EL PROPIO FETCH: getPlanDetail trae los 1205 dias
+// completos (paginando) antes de mostrar nada. getPlanMeta/getPlanDayWindow separan eso: el
+// primer clic solo pide una ventana chica de dias (ver PAGE_SIZE en los componentes), y
+// "Ver más" pide la siguiente ventana bajo demanda -- el costo ya no depende del tamaño
+// del plan.
+export interface PlanMeta {
+  plan: { id: string; name: string; description: string | null } | null;
+  totalDays: number;
+  firstPendingDay: number;
+}
+
+export async function getPlanMeta(userId: string, planId: string): Promise<PlanMeta> {
+  const supabase = await createClient();
+  const [{ data: plan }, { count: totalDays }, doneRows] = await Promise.all([
+    supabase.from("reading_plans").select("id, name, description").eq("id", planId).maybeSingle(),
+    supabase.from("reading_plan_days").select("id", { count: "exact", head: true }).eq("plan_id", planId),
+    fetchAllRows((from, to, withCount) =>
+      supabase
+        .from("reading_plan_progress")
+        .select("day_number", withCount ? { count: "exact" } : undefined)
+        .eq("user_id", userId)
+        .eq("plan_id", planId)
+        .range(from, to)
+    ),
+  ]);
+
+  const doneSet = new Set((doneRows ?? []).map((d) => d.day_number as number));
+  let firstPendingDay = 1;
+  while (doneSet.has(firstPendingDay)) firstPendingDay++;
+
+  return { plan: plan ?? null, totalDays: totalDays ?? 0, firstPendingDay };
+}
+
+export async function getPlanDayWindow(
+  userId: string,
+  planId: string,
+  fromDay: number,
+  toDay: number
+): Promise<PlanDayDetail[]> {
+  const supabase = await createClient();
+  const [{ data: days }, idToOrder, { data: doneRows }] = await Promise.all([
+    supabase
+      .from("reading_plan_days")
+      .select("*")
+      .eq("plan_id", planId)
+      .gte("day_number", fromDay)
+      .lte("day_number", toDay)
+      .order("day_number"),
+    getBookOrderMap(),
+    supabase
+      .from("reading_plan_progress")
+      .select("day_number")
+      .eq("user_id", userId)
+      .eq("plan_id", planId)
+      .gte("day_number", fromDay)
+      .lte("day_number", toDay),
+  ]);
+
+  const doneSet = new Set((doneRows ?? []).map((d) => d.day_number as number));
+  return (days ?? []).map((d) => {
+    const order = idToOrder.get(d.book_id as number);
+    const book = BOOKS.find((b) => b.order === order);
+    return {
+      id: d.id as string,
+      dayNumber: d.day_number as number,
+      bookName: book?.name ?? "—",
+      chapterNumber: d.chapter_number as number,
+      href: book ? `/leer/${slugify(book.name)}/${d.chapter_number}` : "#",
+      completed: doneSet.has(d.day_number as number),
+    };
+  });
+}
+
 export async function getPlanDetail(userId: string, planId: string) {
   const supabase = await createClient();
   const [{ data: plan }, days, idToOrder, doneRows] = await Promise.all([

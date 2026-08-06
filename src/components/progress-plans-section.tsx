@@ -2,17 +2,11 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { enrollInPlan, loadPlanDetail, markPlanDayDone } from "@/lib/actions/reading-plans";
+import { enrollInPlan, loadPlanMeta, loadPlanDayWindow, markPlanDayDone } from "@/lib/actions/reading-plans";
 import type { PlanSummary, PlanDayDetail } from "@/lib/data/reading-plans";
 import { CollapsibleSection } from "@/components/collapsible-section";
 
 const PAGE_SIZE = 100;
-
-function initialVisibleCount(days: PlanDayDetail[]) {
-  const firstPending = days.findIndex((d) => !d.completed);
-  const anchor = firstPending === -1 ? days.length : firstPending;
-  return Math.min(days.length, Math.max(PAGE_SIZE, anchor + PAGE_SIZE));
-}
 
 export function ProgressPlansSection({ plans }: { plans: PlanSummary[] }) {
   return (
@@ -31,8 +25,10 @@ export function ProgressPlansSection({ plans }: { plans: PlanSummary[] }) {
 function PlanRow({ plan }: { plan: PlanSummary }) {
   const [expanded, setExpanded] = useState(false);
   const [days, setDays] = useState<PlanDayDetail[] | null>(null);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [totalDays, setTotalDays] = useState(0);
+  const [loadedTo, setLoadedTo] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [pending, startTransition] = useTransition();
   const pct = plan.totalDays > 0 ? Math.round((plan.completedDays / plan.totalDays) * 100) : 0;
 
@@ -41,14 +37,31 @@ function PlanRow({ plan }: { plan: PlanSummary }) {
       setExpanded(true);
       if (!days) {
         setLoading(true);
-        const detail = await loadPlanDetail(plan.id);
-        setDays(detail.days);
-        setVisibleCount(initialVisibleCount(detail.days));
+        // Antes esto pedia el plan COMPLETO (getPlanDetail), lo cual era lento para un plan
+        // largo como la "Lectura cronologica" (1205 dias) -- el primer clic ahora solo pide
+        // los metadatos + una ventana chica de dias, sin importar el tamaño del plan.
+        const meta = await loadPlanMeta(plan.id);
+        const from = Math.max(1, meta.firstPendingDay - 5);
+        const to = Math.min(meta.totalDays, from + PAGE_SIZE - 1);
+        const firstWindow = await loadPlanDayWindow(plan.id, from, to);
+        setDays(firstWindow);
+        setTotalDays(meta.totalDays);
+        setLoadedTo(to);
         setLoading(false);
       }
     } else {
       setExpanded(false);
     }
+  }
+
+  async function verMas() {
+    setLoadingMore(true);
+    const from = loadedTo + 1;
+    const to = Math.min(totalDays, from + PAGE_SIZE - 1);
+    const more = await loadPlanDayWindow(plan.id, from, to);
+    setDays((cur) => (cur ? [...cur, ...more] : more));
+    setLoadedTo(to);
+    setLoadingMore(false);
   }
 
   function start() {
@@ -57,8 +70,6 @@ function PlanRow({ plan }: { plan: PlanSummary }) {
       await openAndLoad();
     });
   }
-
-  const visible = days ? days.slice(0, visibleCount) : [];
 
   return (
     <div className="rounded-md border border-border">
@@ -97,7 +108,7 @@ function PlanRow({ plan }: { plan: PlanSummary }) {
           {days && (
             <div className="flex flex-col gap-3">
               <ul className="flex max-h-96 flex-col gap-1 overflow-y-auto">
-                {visible.map((d, i) => (
+                {days.map((d) => (
                   <li key={d.dayNumber} className="flex items-center gap-3 rounded-md border border-border p-3 text-sm">
                     <input
                       type="checkbox"
@@ -110,20 +121,21 @@ function PlanRow({ plan }: { plan: PlanSummary }) {
                       }}
                       className="h-4 w-4 accent-[var(--primary)]"
                     />
-                    <span className="w-8 shrink-0 text-right text-foreground/40">{i + 1}.</span>
+                    <span className="w-10 shrink-0 text-right text-foreground/40">{d.dayNumber}.</span>
                     <Link href={d.href} className="font-medium text-primary hover:underline">
                       {d.bookName} {d.chapterNumber}
                     </Link>
                   </li>
                 ))}
               </ul>
-              {visibleCount < days.length && (
+              {loadedTo < totalDays && (
                 <button
                   type="button"
-                  onClick={() => setVisibleCount((c) => Math.min(days.length, c + PAGE_SIZE))}
-                  className="self-start rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted"
+                  onClick={verMas}
+                  disabled={loadingMore}
+                  className="self-start rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
                 >
-                  Ver más ({days.length - visibleCount} restantes)
+                  {loadingMore ? "Cargando..." : `Ver más (${totalDays - loadedTo} restantes)`}
                 </button>
               )}
             </div>
